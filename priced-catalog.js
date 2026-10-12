@@ -1,5 +1,5 @@
-import {catalogItem,normalize} from './offer.js?v=6';
-import {hasPrice,pricedDisplay,identificationLine,itemPresentation} from './product-details.js?v=6';
+import {catalogItem,normalize} from './offer.js?v=7';
+import {hasPrice,pricedDisplay,identificationLine,itemPresentation} from './product-details.js?v=7';
 
 export function preparePricedCatalog(products,pricing,featured=[]){
   const rank=new Map(featured.map((key,index)=>[key,index]));

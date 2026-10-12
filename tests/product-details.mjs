@@ -59,7 +59,7 @@ try{
     if(width===390)await page.locator('.selected-product').screenshot({path:'test-results/details-controls-mobile.png'});
   }
   await page.setViewportSize({width:1440,height:1100});
-  assert.equal(await controls.locator('option[value="none"]').count(),0);for(const field of ['voltage','power','brightness','energy'])await controls.locator(`[data-field="${field}"]`).uncheck();
+  assert.equal(await controls.locator('option[value="none"]').count(),1);for(const field of ['voltage','power','brightness','energy'])await controls.locator(`[data-field="${field}"]`).uncheck();
   await page.locator('#apply-offer').click();assert.doesNotMatch(await editor.innerText(),/Klasa energetyczna:|Napięcie:|Moc:|Strumień świetlny:/);assert.equal(await editor.locator('img[alt^="Klasa energetyczna"]').count(),0);
   assert((await editor.innerText()).includes(priceText('retail')),'Hiding optional specs must preserve the price');
   await editor.evaluate(el=>{el.querySelector('[data-product-price]').remove();el.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -72,8 +72,9 @@ try{
   const legacy={...draft,pricingRequired:false,items:[...draft.items,{id:'category-strips',name:'Taśmy LED',url:'https://www.prescot.pl/katalog/'}]};
   legacy.items[0].display.price='none';legacy.html={text:'<p>Dawna oferta bez cen</p>',visual:'<p>Dawna oferta bez cen</p>'};
   await writeFile('test-results/details-legacy.json',JSON.stringify(legacy));await page.locator('#project-file').setInputFiles('test-results/details-legacy.json');
-  await page.locator('#toast').filter({hasText:'Pominięto pozycje bez ceny'}).waitFor();
-  assert.equal(await page.locator('.selected-product').count(),1);assert.equal(await editor.locator('[data-product-price]').count(),1);assert((await editor.innerText()).includes(priceText('wholesale')));
+  await page.locator('#toast').filter({hasText:'Pominięto niedostępne pozycje'}).waitFor();
+  assert.equal(await page.locator('.selected-product').count(),1);assert.equal(await editor.locator('[data-product-price]').count(),0);
+  await page.locator('#copy-plain').click();await page.locator('#toast').filter({hasText:'Zwykły tekst z linkami skopiowany.'}).waitFor();assert.doesNotMatch(await page.evaluate(()=>navigator.clipboard.readText()),/Cena hurtowa|Cena detaliczna/);
   await page.locator('#lock-button').click();assert.equal(await page.locator('.product-price-mode').count(),0);assert.deepEqual(errors,[]);
   console.log('Product details, official PNG, both net price lists, copy/HTML, draft roundtrip, stale prices, responsive layout and lock: passed.');
 }finally{await browser.close();}

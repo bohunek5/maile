@@ -55,6 +55,7 @@ test('family prices cannot leak onto an unpriced variant',()=>{
 test('imported display configuration accepts only supported booleans and price modes',()=>{
   assert.deepEqual(normalizeDisplay({warranty:false,voltage:'true',energy:true,price:'attacker',amount:1}),{warranty:false,voltage:false,power:false,brightness:false,energy:true,price:'wholesale'});
   assert.equal(normalizeDisplay(null).price,'wholesale');
+  assert.equal(normalizeDisplay({price:'none'}).price,'none');
 });
 test('identification shows trade index and exact variant EAN, never a catalog SKU fallback',()=>{
   const product={...item,tradeIndex:'SALE-01',ean:'0000000000001'};

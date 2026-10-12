@@ -8,7 +8,7 @@ export const detailFields = [
 export function normalizeDisplay(raw={}) {
   const display={warranty:true,voltage:false,power:false,brightness:false,energy:false,price:'wholesale'};
   for(const {key} of detailFields) if(typeof raw?.[key]==='boolean')display[key]=raw[key];
-  if(['wholesale','retail'].includes(raw?.price))display.price=raw.price;
+  if(['none','wholesale','retail'].includes(raw?.price))display.price=raw.price;
   return display;
 }
 export function identificationLine(item) {
@@ -46,6 +46,7 @@ export const availablePriceModes=item=>['wholesale','retail'].filter(mode=>price
 export const hasPrice=item=>availablePriceModes(item).length>0;
 export function pricedDisplay(item,raw=item.display){
   const display=normalizeDisplay(raw);
+  if(display.price==='none')return display;
   if(!priceInfo(item,display.price).available)display.price=availablePriceModes(item)[0]||'wholesale';
   return display;
 }

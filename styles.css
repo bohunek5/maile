@@ -185,7 +185,7 @@ select option { color: #253548; background: #fff; }
 #email-editor { width: 100%; min-height: 260px; margin: 0 auto; padding: 6px 0; color: #273744; font-family: Arial, sans-serif; font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; border-radius: 3px; }
 #email-editor p:last-child { margin-bottom: 0; }
 #email-editor a { text-underline-offset: 3px; }
-#email-editor img { max-width: 100% !important; height: auto; }
+#email-editor img { max-width: 100%; height: auto; }
 #email-editor table { max-width: 100% !important; }
 #email-editor td, #email-editor th { overflow-wrap: anywhere; }
 #email-editor:focus-visible { outline-offset: 10px; }
@@ -197,9 +197,9 @@ select option { color: #253548; background: #fff; }
 .template-note { margin: 13px 0 0; padding: 13px 16px; border-left: 3px solid #c3a27d; border-radius: 0 5px 5px 0; background: #f3eee6; color: #66523a; font-size: 13px; line-height: 1.65; }
 
 /* Catalogue and call-note dialogs. */
-.catalog-dialog, .conversation-dialog { width: min(1100px,calc(100vw - 48px)); max-width: 1100px; max-height: 92svh; padding: 0; overflow: hidden; border: 1px solid #b3c2ce; border-radius: 15px; color: #334e65; background: #fff; box-shadow: 0 25px 100px #172d4840; }
-.catalog-dialog[open], .conversation-dialog[open] { display: flex; flex-direction: column; }
-.catalog-dialog::backdrop, .conversation-dialog::backdrop, .copy-dialog::backdrop { background: #12263e75; backdrop-filter: blur(3px); }
+.catalog-dialog, .conversation-dialog, .groups-dialog { width: min(1100px,calc(100vw - 48px)); max-width: 1100px; max-height: 92svh; padding: 0; overflow: hidden; border: 1px solid #b3c2ce; border-radius: 15px; color: #334e65; background: #fff; box-shadow: 0 25px 100px #172d4840; }
+.catalog-dialog[open], .conversation-dialog[open], .groups-dialog[open] { display: flex; flex-direction: column; }
+.catalog-dialog::backdrop, .conversation-dialog::backdrop, .groups-dialog::backdrop, .copy-dialog::backdrop { background: #12263e75; backdrop-filter: blur(3px); }
 .catalog-header, .conversation-header { display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0; gap: 20px; padding: 25px 28px 20px; }
 .catalog-header h2, .conversation-header h2 { margin: 7px 0 0; color: var(--navy); font-size: 26px; font-weight: 650; letter-spacing: -.6px; line-height: 1.3; }
 .catalog-meta, .conversation-header p:not(.eyebrow) { margin: 9px 0 0; color: #536e82; font-size: 13px; line-height: 1.65; }
@@ -388,7 +388,7 @@ select option { color: #253548; background: #fff; }
   .copy-actions .button { width: 100%; min-height: 46px; }
   .download-actions { width: 100%; }
   .download-actions .button { flex: 1; font-size: 13px; }
-  .catalog-dialog, .conversation-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: 96svh; border-radius: 12px; }
+  .catalog-dialog, .conversation-dialog, .groups-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: 96svh; border-radius: 12px; }
   .catalog-header, .conversation-header { padding: 19px 16px 16px; gap: 9px; }
   .catalog-header h2, .conversation-header h2 { font-size: 22px; }
   .catalog-meta { font-size: 12px; }
@@ -443,4 +443,40 @@ select option { color: #253548; background: #fff; }
   .composer { border: 0; box-shadow: none; }
   .subject-row { padding-inline: 0; }
   .email-paper { padding: 20px 0; }
+}
+
+/* Assortment overview: a visual alternative to individual product rows. */
+.assortment-actions { display:flex; flex-wrap:wrap; gap:9px; }
+.offer-pricing { display:grid; gap:8px; margin:20px 0; padding:16px; border:1px solid #ccd7df; border-radius:9px; background:#eef3f6; }
+.offer-pricing label { font-size:14px; font-weight:600; color:var(--navy); }
+.offer-pricing select { width:100%; min-height:44px; padding:10px 13px; border:1px solid var(--field-border); border-radius:7px; background-color:#fff; color:var(--navy); font-size:14px; }
+.offer-pricing small { color:var(--muted); font-size:12px; line-height:1.5; }
+.groups-dialog { max-width:940px; }
+.groups-toolbar { display:flex; flex-wrap:wrap; gap:8px; padding:0 28px 16px; border-bottom:1px solid var(--line); }
+.groups-scroll { min-height:0; overflow:auto; padding:22px 28px; overscroll-behavior:contain; }
+.group-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.group-option { display:flex; flex-direction:column; gap:15px; min-width:0; padding:18px; border:1px solid #becbd5; border-radius:12px; cursor:pointer; background:#fff; transition:border-color .15s,background .15s; }
+.group-option.chosen { border-color:#365b78; background:#f0f5f8; box-shadow:inset 0 0 0 1px #365b78; }
+.group-option:focus-within { outline:3px solid #3978aa; outline-offset:2px; }
+.group-option-heading { display:flex; align-items:center; gap:10px; color:var(--navy); font-size:17px; line-height:1.4; }
+.group-option input { width:19px; height:19px; flex-shrink:0; accent-color:var(--navy); }
+.group-description { font-size:13px; line-height:1.6; color:#4b6174; }
+.group-mosaic { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; min-width:0; padding:12px; border-radius:9px; background:#fff; }
+.group-mosaic img { display:block; width:100%; height:65px; object-fit:contain; min-width:0; }
+.group-mosaic .group-hero { grid-column:1/-1; height:130px; margin-bottom:3px; }
+.selected-group-overview { display:grid; grid-template-columns:minmax(120px,160px) minmax(0,1fr); align-items:center; gap:18px; margin-top:15px; }
+.selected-group-overview p { color:#506377; font-size:13px; line-height:1.7; margin:0; }
+.selected-group-overview .group-mosaic { padding:8px; border:1px solid #e3e9ed; }
+.selected-group-overview .group-mosaic img { height:36px; }
+.selected-group-overview .group-mosaic .group-hero { height:68px; }
+@media (min-width:1600px) { .selected-group-overview { grid-column:1/-1; } }
+@media (max-width:600px) {
+ .groups-toolbar { padding-inline:16px; }
+ .groups-scroll { padding:16px; }
+ .group-options { grid-template-columns:minmax(0,1fr); }
+ .group-option { padding:15px; }
+ .assortment-actions { width:100%; }
+ .assortment-actions .button { flex:1 1 auto; font-size:13px; }
+ .selected-group-overview { grid-template-columns:minmax(0,1fr); gap:12px; }
+ .selected-group-overview .group-mosaic { max-width:200px; width:100%; margin:auto; }
 }

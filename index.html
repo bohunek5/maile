@@ -9,7 +9,7 @@
     <meta name="description" content="Dopasuj ofertę Prescot do klienta, wybierz produkty i przygotuj mail po rozmowie.">
     <title>Kreator maili i ofert · Prescot</title>
     <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
-    <link rel="stylesheet" href="styles.css?v=6">
+    <link rel="stylesheet" href="styles.css?v=7">
   </head>
   <body>
     <noscript><p style="padding:24px;font-family:Arial,sans-serif;">Włącz JavaScript w przeglądarce, aby otworzyć bibliotekę maili.</p></noscript>
@@ -76,6 +76,7 @@
               <option value="start">Pierwszy kontakt</option>
               <option value="warranty">Gwarancja</option>
               <option value="product">Produkty</option>
+              <option value="assortment">Grupy asortymentowe</option>
             </select>
           </div>
           <nav id="template-list" class="template-list" aria-label="Szablony wiadomości"></nav>
@@ -102,10 +103,11 @@
               <div class="assortment-heading">
                 <div class="builder-step-heading">
                   <h2>Wybierz asortyment <span id="selected-count" class="selected-count"></span></h2>
-                  <p>Dodaj produkty pasujące do potrzeb klienta.</p>
+                  <p>Wybierz konkretne produkty lub pokaż całe grupy.</p>
                 </div>
-                <button id="open-catalog" type="button" class="button button-primary"><span aria-hidden="true">+</span> Dodaj / zmień produkty</button>
+                <div class="assortment-actions"><button id="open-catalog" type="button" class="button button-primary"><span aria-hidden="true">+</span> Produkty</button><button id="open-groups" type="button" class="button button-outline"><span aria-hidden="true">+</span> Grupy asortymentowe</button></div>
               </div>
+              <div id="offer-pricing" class="offer-pricing"><label for="offer-price-mode">Ceny produktów w mailu</label><select id="offer-price-mode"><option value="wholesale">Hurt · PLN netto</option><option value="retail">Detal · PLN netto</option><option value="none">Bez cen</option><option value="mixed" disabled>Różne ustawienia</option></select><small>Grupy asortymentowe zawsze pokazujemy bez cen.</small></div>
               <div id="selected-products" class="selected-products"></div>
               <p id="selection-hint" class="selection-hint"></p>
               <div id="offer-checks" class="offer-checks" role="status" aria-live="polite"></div>
@@ -115,7 +117,7 @@
                 <button id="apply-offer" type="button" class="button button-primary">Ułóż mail z wyboru <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
                 <p id="builder-status" class="builder-status" role="status" aria-live="polite"></p>
               </div>
-              <p class="builder-hint">Wybrane produkty, parametry i ceny trafiają do obu wersji maila.</p>
+              <p class="builder-hint">Twój wybór grup, produktów i widoczności cen trafia do obu wersji maila.</p>
             </div>
           </section>
 
@@ -199,6 +201,13 @@
       <div class="conversation-footer"><div><p id="conversation-selection">Wybierz propozycje, które chcesz uwzględnić w mailu.</p><label class="replace-selection"><input id="replace-assortment" type="checkbox"> Zastąp obecny asortyment</label></div><button id="apply-conversation" type="button" class="button button-primary" disabled>Dodaj wybrane do oferty</button></div>
     </dialog>
 
+    <dialog id="groups-dialog" class="groups-dialog" aria-labelledby="groups-title">
+      <div class="catalog-header"><div><p class="eyebrow">PRZEGLĄD ASORTYMENTU</p><h2 id="groups-title">Które grupy chcesz pokazać?</h2><p class="catalog-meta">Każda grupa to zdjęcie przewodnie, cztery przykłady i link do katalogu. Bez cen.</p></div><button id="close-groups" type="button" class="button button-quiet" aria-label="Zamknij wybór grup">✕</button></div>
+      <div class="groups-toolbar"><button id="groups-select-all" type="button" class="button button-outline button-small">Wszystkie główne grupy</button><button id="groups-clear" type="button" class="button button-quiet button-small">Odznacz wszystkie</button></div>
+      <div class="groups-scroll"><div id="group-options" class="group-options"></div></div>
+      <div class="catalog-footer"><span id="groups-count" role="status" aria-live="polite"></span><button id="apply-groups" type="button" class="button button-primary">Zastosuj wybrane grupy</button></div>
+    </dialog>
+
     <dialog id="catalog-dialog" class="catalog-dialog" aria-labelledby="catalog-title">
       <div class="catalog-header">
         <div>
@@ -259,6 +268,6 @@
       <textarea id="copy-fallback-text" rows="12" readonly></textarea>
       <button id="close-copy-fallback" type="button" class="button button-primary">Gotowe</button>
     </dialog>
-    <script type="module" src="app.js?v=6"></script>
+    <script type="module" src="app.js?v=7"></script>
   </body>
 </html>

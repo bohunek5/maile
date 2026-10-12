@@ -1,4 +1,4 @@
-import {hasPrice} from './product-details.js?v=6';
+import {hasPrice} from './product-details.js?v=7';
 /**
  * Local, deterministic catalogue matching for a salesperson's Polish call note.
  * Like prescotled/catalog-parameters.mjs, numerical facts come from labelled

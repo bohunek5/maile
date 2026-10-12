@@ -1,16 +1,18 @@
 import { unlockLibrary } from './crypto.js';
-import { renderEmail, cleanEmail, emailText, htmlDocument, escapeHTML, emailHasPrices } from './email.js?v=6';
+import { renderEmail, cleanEmail, emailText, htmlDocument, escapeHTML, emailHasPrices } from './email.js?v=7';
 import { createZip } from './zip.js';
-import { recommendProducts } from './recommend.js?v=6';
+import { recommendProducts } from './recommend.js?v=7';
 import { config, imageUrl } from './config.js';
-import { normalize, makeOfferState, catalogItem, composeOffer, offerChecks, searchProducts, warrantyLabel, warrantyYears, normalizeContext } from './offer.js?v=6';
-import { detailFields, normalizeDisplay, productFacts, priceInfo, identificationLine, hasPrice, pricedDisplay } from './product-details.js?v=6';
+import { normalize, makeOfferState, catalogItem, composeOffer, offerChecks, searchProducts, warrantyLabel, warrantyYears, normalizeContext } from './offer.js?v=7';
+import { detailFields, normalizeDisplay, productFacts, priceInfo, identificationLine, hasPrice, pricedDisplay } from './product-details.js?v=7';
 
-import {preparePricedCatalog,resolvePresetItem} from './priced-catalog.js';
+import {preparePricedCatalog,resolvePresetItem} from './priced-catalog.js?v=7';
+import {groupItem,groupTemplate} from './groups.js?v=7';
 
 const $ = id => document.getElementById(id);
 let library=null, current=null, mode='text', unlockPending=false, session=0, toastTimer, catalogLimit=config.catalogPageSize, pendingOverwrite=null, conversationResult=null;
 const conversationChoices=new Map();
+const groupChoices=new Set(),groupsById=new Map();
 const customs=new Map(), drafts=new Map(), subjects=new Map(), offers=new Map(), manualEdits=new Set(), subjectOverrides=new Set(), catalogById=new Map(), originalItems=new Map();
 const element=(tag,className,text) => {const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
 const button=(text,action,className='button button-quiet button-small')=>{const node=element('button',className,text);node.type='button';node.addEventListener('click',action);return node;};
@@ -37,6 +39,7 @@ function renderEditor(){
 function select(id,keepFocus=false,saveCurrent=true){
   if(saveCurrent)save();current=customs.get(id)||library.templates.find(t=>t.id===id);if(!current)return;
   $('template-title').textContent=current.title;$('template-purpose').textContent=current.purpose;$('template-tags').replaceChildren(...current.tags.map(t=>element('span','tag',t)));
+  if(current.id==='grupy-asortymentowe'&&!drafts.has(`${current.id}:text`)&&!drafts.has(`${current.id}:visual`))mode='visual';
   renderEditor();renderSelected();renderList();
   if(!keepFocus&&matchMedia('(max-width:760px)').matches)$('template-title').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -53,7 +56,7 @@ function detailControls(item){
   item.display=pricedDisplay(item);
   const facts=productFacts(item),details=element('details','product-details'),summary=element('summary'),caption=element('span','details-caption');
   summary.append(element('strong','','Dane w mailu'),caption);details.append(summary);
-  const updateCaption=()=>{const labels=detailFields.filter(({key})=>item.display[key]&&facts[key]).map(f=>f.label);const price=priceInfo(item,item.display.price);caption.textContent=[labels.join(', ')||'Bez parametrów',price.available?`${price.label}: ${price.value}`:'Cena do potwierdzenia'].join(' · ');};
+  const updateCaption=()=>{const labels=detailFields.filter(({key})=>item.display[key]&&facts[key]).map(f=>f.label);const price=priceInfo(item,item.display.price);caption.textContent=[labels.join(', ')||'Bez parametrów',item.display.price==='none'?'Bez ceny':price.available?`${price.label}: ${price.value}`:'Cena do potwierdzenia'].join(' · ');};
   const options=element('div','detail-options');
   for(const field of detailFields){
     const fact=facts[field.key],label=element('label','detail-option'),input=element('input');input.type='checkbox';input.dataset.field=field.key;input.checked=Boolean(item.display[field.key]&&fact);input.disabled=!fact;
@@ -63,22 +66,43 @@ function detailControls(item){
   }
   details.append(element('p','details-help','Zaznaczone dane pojawią się pod opisem produktu. Nazwa i opis pozostają bez zmian.'),options);
   const priceLabel=element('label','detail-price-label','Cena w mailu'),select=element('select','product-price-mode'),preview=element('p','detail-price-preview');select.setAttribute('aria-label',`Cena w mailu: ${item.name}`);
+  select.append(new Option('Bez ceny','none'));
   for(const [key,label] of [['wholesale','Hurt'],['retail','Detal']]){const info=priceInfo(item,key),option=new Option(info.available?`${label} · ${info.value}`:`${label} · ${info.reason}`,key);option.disabled=!info.available;select.append(option);}
   select.value=item.display.price;
   const updatePrice=()=>{const info=priceInfo(item,item.display.price);preview.textContent=info.available?`${info.label}: ${info.value}${info.updatedAt?` · Cennik z ${new Date(info.updatedAt).toLocaleDateString('pl-PL')}`:''}`:item.display.price!=='none'?info.reason:item.kind==='family'?'Wybierz wariant produktu w katalogu, aby dodać jego cenę.':!['wholesale','retail'].some(key=>priceInfo(item,key).available)?'Brak potwierdzonej ceny z jednostką dla tego modelu.':'';preview.hidden=!preview.textContent;};
-  select.addEventListener('change',()=>{item.display.price=select.value;updatePrice();updateCaption();markDirty();});priceLabel.append(select);details.append(priceLabel,preview);updatePrice();updateCaption();return details;
+  select.addEventListener('change',()=>{item.display.price=select.value;updatePrice();updateCaption();updatePricing();markDirty();});priceLabel.append(select);details.append(priceLabel,preview);updatePrice();updateCaption();return details;
+}
+function updatePricing(){
+  const products=offer().items.filter(item=>item.kind!=='group'),modes=new Set(products.map(item=>item.display?.price||'wholesale'));
+  $('offer-pricing').hidden=!products.length;$('offer-price-mode').value=modes.size===1?[...modes][0]:'mixed';
+}
+function selectedPriceMode(){const modes=new Set(offer().items.filter(item=>item.kind!=='group').map(item=>item.display?.price||'wholesale'));return modes.size===1?[...modes][0]:null;}
+function inheritPricing(item,mode=selectedPriceMode()){if(mode==='none'||priceInfo(item,mode).available)item.display={...item.display,price:mode};return item;}
+$('offer-price-mode').addEventListener('change',()=>{
+  const mode=$('offer-price-mode').value;if(mode==='mixed')return;
+  const products=offer().items.filter(item=>item.kind!=='group');
+  if(mode!=='none'&&products.some(item=>!priceInfo(item,mode).available)){updatePricing();toast('Nie wszystkie produkty mają cenę w tym cenniku. Wybierz cennik osobno w „Dane w mailu”.');return;}
+  for(const item of products)item.display={...normalizeDisplay(item.display),price:mode};
+  markDirty();renderSelected();
+});
+function groupMosaic(group){
+  const mosaic=element('div','group-mosaic');mosaic.append(photo(group.image,group.name,'group-hero'));
+  for(const entry of group.gallery)mosaic.append(photo(entry.image,entry.name,'group-thumb'));
+  return mosaic;
 }
 function renderSelected(){
   const items=offer().items;$('selected-count').textContent=String(items.length);$('selected-products').replaceChildren();
   items.forEach((item,index)=>{
     const row=element('div','selected-product'),main=element('div','selected-product-main'),copy=element('div');row.dataset.selectionId=item.selectionId;
-    if(item.image)main.append(photo(item.image,item.name,''));copy.append(element('strong','',item.name),element('small','',[identificationLine(item),item.warranty?`Gwarancja: ${warrantyLabel(item.warranty)}`:'',item.kind==='family'?'Rodzina produktów':''].filter(Boolean).join(' · ')));main.append(copy);
+    if(item.image)main.append(photo(item.image,item.name,''));copy.append(element('strong','',item.name),element('small','',item.kind==='group'?'Grupa asortymentowa · Bez cen':[identificationLine(item),item.warranty?`Gwarancja: ${warrantyLabel(item.warranty)}`:'',item.kind==='family'?'Rodzina produktów':''].filter(Boolean).join(' · ')));main.append(copy);
     const actions=element('div','selected-product-actions');
     const up=button('',()=>{[items[index-1],items[index]]=[items[index],items[index-1]];markDirty();renderSelected();});up.innerHTML='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></svg>';up.title='Przenieś wyżej';up.disabled=index===0;up.setAttribute('aria-label',`Przenieś wyżej: ${item.name}`);
     const down=button('',()=>{[items[index+1],items[index]]=[items[index],items[index+1]];markDirty();renderSelected();});down.innerHTML='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"/></svg>';down.title='Przenieś niżej';down.disabled=index===items.length-1;down.setAttribute('aria-label',`Przenieś niżej: ${item.name}`);
-    const remove=button('Usuń',()=>{items.splice(index,1);markDirty();renderSelected();});remove.classList.add('remove-product');remove.setAttribute('aria-label',`Usuń: ${item.name}`);actions.append(element('span','product-order',`Pozycja ${index+1}`),up,down,remove);row.append(main,detailControls(item),actions);$('selected-products').append(row);
+    const remove=button('Usuń',()=>{items.splice(index,1);markDirty();renderSelected();});remove.classList.add('remove-product');remove.setAttribute('aria-label',`Usuń: ${item.name}`);actions.append(element('span','product-order',`Pozycja ${index+1}`),up,down,remove);
+    if(item.kind==='group'){row.classList.add('selected-group');const overview=element('div','selected-group-overview');overview.append(groupMosaic(item),element('p','',item.description));row.append(main,overview,actions);}else row.append(main,detailControls(item),actions);
+    $('selected-products').append(row);
   });
-  $('selection-hint').textContent=items.length?'Kolejność tutaj odpowiada kolejności w mailu. Rozwiń „Dane w mailu”, aby wybrać parametry i cennik.':'Zacznij od produktów pasujących do rozmowy. Możesz też wysłać wiadomość bez listy produktów.';status();
+  $('selection-hint').textContent=items.length?'Kolejność tutaj odpowiada kolejności w mailu. Grupy pokazują przegląd asortymentu. Przy produktach możesz wybrać parametry i widoczność ceny.':'Dodaj grupy asortymentowe lub konkretne produkty pasujące do rozmowy.';updatePricing();status();
 }
 function regenerate(){
   const state=offer();state.generated=true;state.dirty=false;state.priceRefreshNeeded=false;drafts.delete(`${current.id}:text`);drafts.delete(`${current.id}:visual`);manualEdits.delete(current.id);
@@ -100,6 +124,9 @@ function setupLibrary(){
     template.items=template.items.map(reference=>resolvePresetItem(reference,library.catalog.products)).filter(Boolean);
     for(const item of template.items){item.image=imageUrl(item.image);originalItems.set(item.selectionId,item);}
   }
+  library.groups=(library.groups||[]).map(groupItem);for(const group of library.groups)groupsById.set(group.id,group);
+  library.sales.groupIds=library.groups.map(group=>group.id);
+  const grouped=groupTemplate(library.groups);Object.assign(grouped,model(grouped));library.templates.push(grouped);
   const categories=new Map(library.catalog.products.map(p=>[p.category,p.categoryLabel]));$('catalog-category').replaceChildren(new Option('Wszystkie kategorie','all'),...[...categories].map(([value,label])=>new Option(label,value)));
   $('catalog-meta').textContent=`Tylko produkty z potwierdzoną ceną · Polecane na start na początku · Stan katalogu: ${library.catalog.updated}. `;
   if(prices?.updatedAt)$('catalog-meta').append(document.createTextNode(`Cenniki: ${new Date(prices.updatedAt).toLocaleDateString('pl-PL')} · PLN netto. `));
@@ -118,7 +145,7 @@ function renderCatalog(reset=false){
     const actions=element('div','catalog-actions');
     const item=()=>catalogItem(product,variant);
     const update=()=>{const chosen=item();identity.textContent=identificationLine(chosen);const info=priceInfo(chosen,chosen.display.price);price.textContent=info.available?`${info.label}: ${info.value}`:'';add.disabled=!info.available;const selected=offer().items.some(i=>i.selectionId===item().selectionId);card.classList.toggle('selected',selected);add.textContent=selected?'Usuń z maila':'+ Dodaj do maila';add.setAttribute('aria-pressed',String(selected));$('catalog-result-count').textContent=`${Math.min(catalogLimit,found.length)} z ${found.length} wyników · W mailu: ${offer().items.length}`;};
-    const add=button('',()=>{const chosen=item(),items=offer().items,index=items.findIndex(i=>i.selectionId===chosen.selectionId);if(index<0){if(!hasPrice(chosen))return;items.push(chosen);}else items.splice(index,1);markDirty();renderSelected();update();},'button button-primary button-small');
+    const add=button('',()=>{const chosen=item(),items=offer().items,index=items.findIndex(i=>i.selectionId===chosen.selectionId);if(index<0){if(!hasPrice(chosen))return;items.push(inheritPricing(chosen));}else items.splice(index,1);markDirty();renderSelected();update();},'button button-primary button-small');
     if(product.variants?.length){
       const variants=element('select','catalog-variant');variants.setAttribute('aria-label',`Wariant: ${product.name}`);
       for(const v of product.variants)variants.append(new Option([v.tradeIndex,v.name!==v.sku?v.name:'',v.ean?`EAN ${v.ean}`:''].filter(Boolean).join(' · ')||'Wariant bez oznaczeń',v.sku));
@@ -134,6 +161,27 @@ for(const id of ['close-catalog','catalog-done'])$(id).addEventListener('click',
 $('catalog-search').addEventListener('input',()=>renderCatalog(true));for(const id of ['catalog-category','catalog-warranty'])$(id).addEventListener('change',()=>renderCatalog(true));
 $('catalog-more').addEventListener('click',()=>{catalogLimit+=config.catalogPageSize;renderCatalog();});
 $('catalog-clear').addEventListener('click',()=>{$('catalog-search').value='';$('catalog-category').value='all';$('catalog-warranty').value='all';renderCatalog(true);});
+function renderGroups(){
+  $('group-options').replaceChildren();
+  for(const group of library.groups){
+    const card=element('label','group-option'),checkbox=element('input');checkbox.type='checkbox';checkbox.value=group.id;checkbox.checked=groupChoices.has(group.id);card.classList.toggle('chosen',checkbox.checked);
+    const heading=element('span','group-option-heading');heading.append(checkbox,element('strong','',group.name));
+    card.append(heading,groupMosaic(group),element('span','group-description',group.description));
+    checkbox.addEventListener('change',()=>{if(checkbox.checked)groupChoices.add(group.id);else groupChoices.delete(group.id);card.classList.toggle('chosen',checkbox.checked);$('groups-count').textContent=`Wybrano ${groupChoices.size} z ${library.groups.length} grup`;});
+    $('group-options').append(card);
+  }
+  $('groups-count').textContent=`Wybrano ${groupChoices.size} z ${library.groups.length} grup`;
+}
+$('open-groups').addEventListener('click',()=>{groupChoices.clear();for(const item of offer().items)if(item.kind==='group')groupChoices.add(item.id);renderGroups();$('groups-dialog').showModal();});
+$('close-groups').addEventListener('click',()=>$('groups-dialog').close());
+$('groups-select-all').addEventListener('click',()=>{for(const group of library.groups)groupChoices.add(group.id);renderGroups();});
+$('groups-clear').addEventListener('click',()=>{groupChoices.clear();renderGroups();});
+$('apply-groups').addEventListener('click',()=>{
+  const state=offer(),oldIds=new Set(state.items.filter(item=>item.kind==='group').map(item=>item.id));
+  const changed=oldIds.size!==groupChoices.size||[...groupChoices].some(id=>!oldIds.has(id));
+  if(changed){state.items=state.items.filter(item=>item.kind!=='group'||groupChoices.has(item.id));for(const group of library.groups)if(groupChoices.has(group.id)&&!oldIds.has(group.id))state.items.push(groupItem(group));markDirty();renderSelected();}
+  $('groups-dialog').close();if(changed&&groupChoices.size)setMode('visual');
+});
 function newTemplate(){return {id:`oferta-${Date.now()}`,title:`Twoja oferta ${customs.size+1}`,short:'Własny wybór produktów',group:'start',purpose:'Wybierz produkty i dopasuj wiadomość do konkretnej rozmowy.',tags:['Własny wybór','Bez stopki'],subject:library.sales.segments.general.subject,intro:[library.sales.segments.general.opening],closing:[library.sales.segments.general.cta],items:[],links:[]};}
 $('start-custom').addEventListener('click',()=>{const custom=newTemplate();customs.set(custom.id,custom);offer(custom).generated=true;select(custom.id);});
 
@@ -184,8 +232,8 @@ function renderConversation(){
 }
 $('analyze-conversation').addEventListener('click',()=>analyzeConversation());
 $('apply-conversation').addEventListener('click',()=>{
-  if(!conversationResult)return;let added=0,typeChanged=false;if($('replace-assortment').checked)offer().items=[];
-  for(const group of conversationResult.groups){const selected=conversationChoices.get(group.key),candidate=group.products.find(p=>(p.variantSku?`${p.id}::${p.variantSku}`:p.id)===selected);if(!candidate)continue;const p=catalogById.get(candidate.id);if(!p)continue;const variant=candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null;const item=catalogItem(p,variant);if(!hasPrice(item))continue;if(offer().items.some(i=>i.selectionId===item.selectionId))continue;offer().items.push(item);added++;}
+  if(!conversationResult)return;let added=0,typeChanged=false;const priceMode=selectedPriceMode();if($('replace-assortment').checked)offer().items=[];
+  for(const group of conversationResult.groups){const selected=conversationChoices.get(group.key),candidate=group.products.find(p=>(p.variantSku?`${p.id}::${p.variantSku}`:p.id)===selected);if(!candidate)continue;const p=catalogById.get(candidate.id);if(!p)continue;const variant=candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null;const item=catalogItem(p,variant);if(!hasPrice(item))continue;if(offer().items.some(i=>i.selectionId===item.selectionId))continue;offer().items.push(inheritPricing(item,priceMode));added++;}
   if(conversationResult.customerType&&offer().config.customerType==='general'){typeChanged=true;offer().config.customerType=conversationResult.customerType;}
   if(added||typeChanged){markDirty();renderSelected();}else status();$('conversation-dialog').close();toast(added?`Dodano ${added} ${added===1?'propozycję':added<5?'propozycje':'propozycji'}. Ułóż mail, aby zobaczyć nowy asortyment.`:'Wybrane produkty są już w ofercie.');
 });
@@ -205,11 +253,11 @@ $('unlock-form').addEventListener('submit',async event=>{
 });
 $('toggle-password').addEventListener('click',()=>{const show=$('password').type==='password';$('password').type=show?'text':'password';$('toggle-password').textContent=show?'Ukryj':'Pokaż';$('toggle-password').setAttribute('aria-label',show?'Ukryj hasło':'Pokaż hasło');$('toggle-password').setAttribute('aria-pressed',String(show));});
 function lock(){
-  session++;conversationResult=null;conversationChoices.clear();library=null;current=null;mode='text';pendingOverwrite=null;for(const map of [customs,drafts,subjects,offers,catalogById,originalItems,manualEdits,subjectOverrides])map.clear();
+  session++;conversationResult=null;conversationChoices.clear();groupChoices.clear();groupsById.clear();library=null;current=null;mode='text';pendingOverwrite=null;for(const map of [customs,drafts,subjects,offers,catalogById,originalItems,manualEdits,subjectOverrides])map.clear();
   $('workspace').hidden=true;$('lock-screen').hidden=false;
-  for(const id of ['email-editor','template-list','template-title','template-purpose','template-tags','template-note','selected-products','catalog-results','catalog-meta','offer-checks','conversation-criteria','conversation-calculation','conversation-questions','conversation-groups'])$(id).replaceChildren();
+  for(const id of ['email-editor','template-list','template-title','template-purpose','template-tags','template-note','selected-products','catalog-results','catalog-meta','offer-checks','conversation-criteria','conversation-calculation','conversation-questions','conversation-groups','group-options'])$(id).replaceChildren();
   for(const id of ['password','subject-input','search-input','copy-fallback-text','catalog-search','project-file','conversation-note'])$(id).value='';
-  $('group-filter').value='all';$('login-error').textContent='';$('toast').hidden=true;for(const id of ['copy-fallback','catalog-dialog','overwrite-dialog','conversation-dialog'])$(id).close();$('password').focus();
+  $('group-filter').value='all';$('login-error').textContent='';$('toast').hidden=true;for(const id of ['copy-fallback','catalog-dialog','overwrite-dialog','conversation-dialog','groups-dialog'])$(id).close();$('password').focus();
 }
 $('lock-button').addEventListener('click',lock);window.addEventListener('pagehide',()=>{if(library)lock();});
 $('search-input').addEventListener('input',renderList);$('group-filter').addEventListener('change',renderList);
@@ -240,9 +288,9 @@ $('download-txt').addEventListener('click',()=>ensureReady(()=>{save();download(
 $('download-all').addEventListener('click',()=>{
   if(!library)return;const files=[];
   for(const t of library.templates){const prefix=`${(customs.has(t.id)?'＋':String(library.templates.indexOf(t)+1).padStart(2,'0'))}-${t.id}/`;files.push({name:prefix+'mail.html',content:htmlDocument(t.subject,renderEmail(t,'text'))},{name:prefix+'mail-ze-zdjeciami.html',content:htmlDocument(t.subject,renderEmail(t,'visual'))},{name:prefix+'mail.txt',content:`Temat: ${t.subject}\n\n${emailText(renderEmail(t,'text'))}\n`});}
-  download('PRESCOT-10-maili.zip',createZip(files));toast('Pobrano 10 wzorów: HTML, wersje ze zdjęciami i TXT.');
+  download(`PRESCOT-${library.templates.length}-maili.zip`,createZip(files));toast(`Pobrano ${library.templates.length} wzorów: HTML, wersje ze zdjęciami i TXT.`);
 });
-$('save-project').addEventListener('click',()=>{save();const payload={type:'prescot-offer',version:1,pricingRequired:true,templateId:current.id,pricesUpdatedAt:library.prices?.updatedAt||'',conversationNote:offer().conversationNote||'',reservePercent:offer().reservePercent??20,config:offer().config,items:offer().items.map(i=>({selectionId:i.selectionId,id:i.id,variantSku:i.variantSku,reason:i.reason||'',display:normalizeDisplay(i.display)})),generated:offer().generated,dirty:offer().dirty,subject:subject(current),subjectOverride:subjectOverrides.has(current.id),manual:manualEdits.has(current.id),mode,drafts:{text:fragment(current,'text'),visual:fragment(current,'visual')}};download('prescot-oferta-robocza.json',new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Zapisano plik roboczy na tym urządzeniu. Wczytasz go przy kolejnym logowaniu.');});
+$('save-project').addEventListener('click',()=>{save();const payload={type:'prescot-offer',version:1,pricingVersion:2,templateId:current.id,pricesUpdatedAt:library.prices?.updatedAt||'',conversationNote:offer().conversationNote||'',reservePercent:offer().reservePercent??20,config:offer().config,items:offer().items.map(i=>({selectionId:i.selectionId,id:i.id,kind:i.kind,variantSku:i.variantSku,reason:i.reason||'',display:normalizeDisplay(i.display)})),generated:offer().generated,dirty:offer().dirty,subject:subject(current),subjectOverride:subjectOverrides.has(current.id),manual:manualEdits.has(current.id),mode,drafts:{text:fragment(current,'text'),visual:fragment(current,'visual')}};download('prescot-oferta-robocza.json',new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Zapisano plik roboczy na tym urządzeniu. Wczytasz go przy kolejnym logowaniu.');});
 $('load-project').addEventListener('click',()=>$('project-file').click());
 $('project-file').addEventListener('change',async()=>{
   const file=$('project-file').files[0],activeSession=session;if(!file)return;
@@ -250,18 +298,19 @@ $('project-file').addEventListener('change',async()=>{
     if(file.size>2_000_000)throw new Error();const data=JSON.parse(await file.text());if(!library||session!==activeSession)return;
     if(data.type!=='prescot-offer'||data.version!==1||!Array.isArray(data.items)||data.items.length>200)throw new Error();
     const items=data.items.map(raw=>{
+      if(raw.kind==='group'){const group=groupsById.get(raw.id);return group?groupItem(group):null;}
       const p=catalogById.get(raw.id);if(!p)return null;
       const variant=raw.variantSku?p.variants?.find(v=>v.sku===raw.variantSku):null;if(raw.variantSku&&!variant)return null;
       const item=catalogItem(p,variant);if(!hasPrice(item))return null;
       item.reason=String(raw.reason||'').slice(0,300);item.display=pricedDisplay(item,raw.display);return item;
     }).filter(Boolean);
-    const rebuild=data.pricingRequired!==true||items.length!==data.items.length;
+    const rebuild=items.length!==data.items.length;
 
     if(new Set(items.map(i=>i.selectionId)).size!==items.length)throw new Error();
-    const priceRefreshNeeded=items.length>0&&data.pricesUpdatedAt!==library.prices?.updatedAt;
+    const priceRefreshNeeded=items.some(item=>item.kind!=='group'&&item.display.price!=='none')&&data.pricesUpdatedAt!==library.prices?.updatedAt;
     save();const base=library.templates.find(t=>t.id===data.templateId);const custom={...(base?structuredClone(base):newTemplate()),id:`oferta-${Date.now()}`,title:`Wczytana oferta ${customs.size+1}`,purpose:'Zapisana propozycja — możesz dopracować ją przed wysłaniem.'};
     customs.set(custom.id,custom);offers.set(custom.id,{conversationNote:String(data.conversationNote||'').slice(0,3000),reservePercent:Number.isFinite(data.reservePercent)?Math.max(0,Math.min(50,data.reservePercent)):20,config:normalizeContext(data.config),items,generated:true,dirty:Boolean(data.dirty)||priceRefreshNeeded,priceRefreshNeeded});subjects.set(custom.id,String(data.subject||custom.subject).slice(0,300));subjectOverrides.delete(custom.id);if(data.subjectOverride)subjectOverrides.add(custom.id);manualEdits.delete(custom.id);if(data.manual&&!rebuild)manualEdits.add(custom.id);
     for(const format of ['text','visual']){drafts.delete(`${custom.id}:${format}`);if(!rebuild&&typeof data.drafts?.[format]==='string'){const html=cleanEmail(data.drafts[format]);if(emailHasPrices(html,model(custom).items))drafts.set(`${custom.id}:${format}`,html);}}
-    mode=data.mode==='visual'?'visual':'text';select(custom.id,true,false);toast(rebuild?'Wczytano ofertę. Pominięto pozycje bez ceny i odtworzono mail z aktualnymi cenami.':'Wczytano ofertę. Możesz zmienić produkty lub treść.');
+    mode=data.mode==='visual'?'visual':'text';select(custom.id,true,false);toast(rebuild?'Wczytano ofertę. Pominięto niedostępne pozycje i odtworzono mail z aktualnego katalogu.':'Wczytano ofertę. Możesz zmienić produkty lub treść.');
   }catch{toast('Nie udało się wczytać oferty. Użyj pliku JSON zapisanego w tym kreatorze.');}finally{$('project-file').value='';}
 });

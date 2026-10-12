@@ -28,14 +28,24 @@ Sprzeczne długości opakowania blokują daną cenę. `Kod_produktu` to indeks h
 kod producenta pozostaje wewnętrznym kluczem katalogu. Indeks handlowy oraz EAN
 są pokazywane przy konkretnej pozycji oferty.
 
-Do oferty trafiają wyłącznie konkretne produkty i warianty z potwierdzoną,
-dodatnią ceną oraz jednostką. Reguła obejmuje wzory, katalog, dobór z rozmowy,
-import zapisanej oferty i eksport. Domyślnie pokazujemy cenę hurtową; jeśli
-dostępny jest tylko detal, pokazujemy detal. Nie ma opcji ukrycia ceny.
-Szyfrowanie przerywa się, jeśli choć jedna pozycja wzoru nie spełnia tej reguły.
+Katalog konkretnych produktów i dobór z rozmowy zawierają produkty i warianty
+z potwierdzoną, dodatnią ceną oraz jednostką. Domyślnie pokazujemy hurt;
+jeśli dostępny jest tylko detal, pokazujemy detal. Handlowiec może wybrać
+„Bez ceny” przy produkcie lub „Bez cen” dla wszystkich wybranych produktów.
+Ukrycie jest świadomym wyborem, a nie zastąpieniem brakującej ceny.
+Szyfrowanie przerywa się, jeśli pozycja jednego z 10 wzorów produktowych
+nie ma potwierdzonej ceny w katalogu.
 Polecane produkty z `library.featured` są pierwsze w katalogu; to wybór
 asortymentu na start, a nie ranking sprzedaży. Rodziny wymagają wyboru
-konkretnego wariantu. Starsze oferty bez cen są odtwarzane z aktualnych danych.
+konkretnego wariantu. Przy imporcie zachowujemy jawny wybór ukrycia ceny;
+pozostałe dane produktów są odtwarzane z aktualnego katalogu.
+
+`private/groups.json` zawiera pięć grup asortymentowych. Każda ma oryginalne
+zdjęcie główne, cztery podlinkowane przykłady oraz adres kategorii katalogu.
+Grupy nie mają cen ani wspólnych indeksów, EAN i parametrów produktów.
+Kreator dodaje 11. wzór „Grupy · pełna oferta”; handlowiec może wybrać dowolny
+podzbiór, wszystkie grupy albo połączyć je z konkretnymi produktami.
+W eksporcie zdjęcia grup układane są tabelami z CSS inline, bez skryptów.
 
 Parametry i klasa energetyczna pochodzą z katalogu, nie z XML cenowego.
 Grafiki `assets/energy/A.png`–`G.png` to niezmienione oryginały z

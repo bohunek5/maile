@@ -75,8 +75,8 @@ test('preset resolves an exact variant and retains verified commercial identity'
   assert.equal(item.selectionId,'family::V-one');
   assert.equal(item.tradeIndex,'TRADE-ONE');
   assert.equal(item.ean,'EAN-ONE');
-  assert.equal(item.display.price,'wholesale');
-  assert.equal(item.price.available,true);
+  assert.equal(item.display.price,'none');
+  assert.equal(item.price,null);
   assert.equal(item.name,'Nazwa w mailu');
   assert.equal(item.description,'Opis w mailu');
   assert.deepEqual(item.details,[]);
