@@ -6,9 +6,9 @@ export const detailFields = [
   {key:'energy',label:'Klasa energetyczna'},
 ];
 export function normalizeDisplay(raw={}) {
-  const display={warranty:true,voltage:false,power:false,brightness:false,energy:false,price:'none'};
+  const display={warranty:true,voltage:false,power:false,brightness:false,energy:false,price:'wholesale'};
   for(const {key} of detailFields) if(typeof raw?.[key]==='boolean')display[key]=raw[key];
-  if(['none','wholesale','retail'].includes(raw?.price))display.price=raw.price;
+  if(['wholesale','retail'].includes(raw?.price))display.price=raw.price;
   return display;
 }
 export function identificationLine(item) {
@@ -41,6 +41,13 @@ export function priceInfo(item, mode) {
   const amount=new Intl.NumberFormat('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:6}).format(Number(value.amount));
   const packaging=value.packageLabel&&/^szt\.?$/.test(value.unit)?` (${value.packageLabel})`:'';
   return {available:true,label:mode==='wholesale'?'Cena hurtowa':'Cena detaliczna',value:`${amount} ${value.currency==='PLN'?'zł':value.currency} ${value.taxBasis==='net'?'netto':'brutto'} / ${value.unit}${packaging}`,updatedAt:value.updatedAt||''};
+}
+export const availablePriceModes=item=>['wholesale','retail'].filter(mode=>priceInfo(item,mode).available);
+export const hasPrice=item=>availablePriceModes(item).length>0;
+export function pricedDisplay(item,raw=item.display){
+  const display=normalizeDisplay(raw);
+  if(!priceInfo(item,display.price).available)display.price=availablePriceModes(item)[0]||'wholesale';
+  return display;
 }
 export function itemPresentation(item) {
   const display=normalizeDisplay(item.display),facts=productFacts(item),price=priceInfo(item,display.price);

@@ -1,10 +1,12 @@
 import { unlockLibrary } from './crypto.js';
-import { renderEmail, cleanEmail, emailText, htmlDocument, escapeHTML } from './email.js?v=5';
+import { renderEmail, cleanEmail, emailText, htmlDocument, escapeHTML, emailHasPrices } from './email.js?v=6';
 import { createZip } from './zip.js';
-import { recommendProducts } from './recommend.js?v=5';
+import { recommendProducts } from './recommend.js?v=6';
 import { config, imageUrl } from './config.js';
-import { normalize, makeOfferState, catalogItem, composeOffer, offerChecks, searchProducts, warrantyLabel, warrantyYears, normalizeContext } from './offer.js?v=5';
-import { detailFields, normalizeDisplay, productFacts, priceInfo, identificationLine } from './product-details.js';
+import { normalize, makeOfferState, catalogItem, composeOffer, offerChecks, searchProducts, warrantyLabel, warrantyYears, normalizeContext } from './offer.js?v=6';
+import { detailFields, normalizeDisplay, productFacts, priceInfo, identificationLine, hasPrice, pricedDisplay } from './product-details.js?v=6';
+
+import {preparePricedCatalog,resolvePresetItem} from './priced-catalog.js';
 
 const $ = id => document.getElementById(id);
 let library=null, current=null, mode='text', unlockPending=false, session=0, toastTimer, catalogLimit=config.catalogPageSize, pendingOverwrite=null, conversationResult=null;
@@ -15,7 +17,7 @@ const button=(text,action,className='button button-quiet button-small')=>{const 
 function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>{$('toast').hidden=true;},4000);}
 function offer(template=current){if(!offers.has(template.id))offers.set(template.id,makeOfferState(template));return offers.get(template.id);}
 function save(){if(!current)return;drafts.set(`${current.id}:${mode}`,cleanEmail($('email-editor').innerHTML));subjects.set(current.id,$('subject-input').value);}
-function model(template){const state=offer(template);return state.generated?composeOffer(template,state,library.sales):template;}
+function model(template){const state=offer(template);return composeOffer(template,state,library.sales);}
 function fragment(template,format=mode){return drafts.get(`${template.id}:${format}`)??renderEmail(model(template),format);}
 function subject(template){return subjects.get(template.id)??model(template).subject;}
 function updateLength(){const count=$('email-editor').innerText.trim().split(/\s+/).filter(Boolean).length;$('mail-length').textContent=`${count} słów`;}
@@ -48,10 +50,10 @@ function status(){
 function markDirty(){offer().dirty=true;status();}
 function photo(src,alt,className){const img=element('img',className);img.src=src;img.alt=alt;img.loading='lazy';img.addEventListener('error',()=>{img.hidden=true;},{once:true});return img;}
 function detailControls(item){
-  item.display=normalizeDisplay(item.display);
+  item.display=pricedDisplay(item);
   const facts=productFacts(item),details=element('details','product-details'),summary=element('summary'),caption=element('span','details-caption');
   summary.append(element('strong','','Dane w mailu'),caption);details.append(summary);
-  const updateCaption=()=>{const labels=detailFields.filter(({key})=>item.display[key]&&facts[key]).map(f=>f.label);const price=priceInfo(item,item.display.price);caption.textContent=[labels.join(', ')||'Bez parametrów',price.available?(item.display.price==='wholesale'?'Cena hurtowa':'Cena detaliczna'):'Bez ceny'].join(' · ');};
+  const updateCaption=()=>{const labels=detailFields.filter(({key})=>item.display[key]&&facts[key]).map(f=>f.label);const price=priceInfo(item,item.display.price);caption.textContent=[labels.join(', ')||'Bez parametrów',price.available?`${price.label}: ${price.value}`:'Cena do potwierdzenia'].join(' · ');};
   const options=element('div','detail-options');
   for(const field of detailFields){
     const fact=facts[field.key],label=element('label','detail-option'),input=element('input');input.type='checkbox';input.dataset.field=field.key;input.checked=Boolean(item.display[field.key]&&fact);input.disabled=!fact;
@@ -61,7 +63,6 @@ function detailControls(item){
   }
   details.append(element('p','details-help','Zaznaczone dane pojawią się pod opisem produktu. Nazwa i opis pozostają bez zmian.'),options);
   const priceLabel=element('label','detail-price-label','Cena w mailu'),select=element('select','product-price-mode'),preview=element('p','detail-price-preview');select.setAttribute('aria-label',`Cena w mailu: ${item.name}`);
-  select.append(new Option('Bez ceny','none'));
   for(const [key,label] of [['wholesale','Hurt'],['retail','Detal']]){const info=priceInfo(item,key),option=new Option(info.available?`${label} · ${info.value}`:`${label} · ${info.reason}`,key);option.disabled=!info.available;select.append(option);}
   select.value=item.display.price;
   const updatePrice=()=>{const info=priceInfo(item,item.display.price);preview.textContent=info.available?`${info.label}: ${info.value}${info.updatedAt?` · Cennik z ${new Date(info.updatedAt).toLocaleDateString('pl-PL')}`:''}`:item.display.price!=='none'?info.reason:item.kind==='family'?'Wybierz wariant produktu w katalogu, aby dodać jego cenę.':!['wholesale','retail'].some(key=>priceInfo(item,key).available)?'Brak potwierdzonej ceny z jednostką dla tego modelu.':'';preview.hidden=!preview.textContent;};
@@ -84,23 +85,23 @@ function regenerate(){
   if(!subjectOverrides.has(current.id))subjects.delete(current.id);renderEditor();status();
 }
 function confirmOverwrite(action){if(manualEdits.has(current.id)){pendingOverwrite=action;$('overwrite-dialog').showModal();}else action();}
-function ensureReady(action){if(!current)return;if(offer().dirty)confirmOverwrite(()=>{regenerate();action();});else action();}
+function ensureReady(action){if(!current)return;const checked=()=>{save();if(!emailHasPrices(fragment(current),model(current).items)){toast('W treści brakuje ceny lub została zmieniona. Kliknij „Ułóż mail z wyboru”, aby przywrócić ceny z cennika.');return;}action();};if(offer().dirty)confirmOverwrite(()=>{regenerate();checked();});else checked();}
 $('apply-offer').addEventListener('click',()=>confirmOverwrite(()=>{regenerate();toast('Mail ułożony. Możesz go jeszcze dopracować przed skopiowaniem.');}));
 $('confirm-overwrite').addEventListener('click',()=>{const action=pendingOverwrite;pendingOverwrite=null;$('overwrite-dialog').close();action?.();});
-$('copy-existing').addEventListener('click',()=>{const html=cleanEmail($('email-editor').innerHTML);pendingOverwrite=null;$('overwrite-dialog').close();copy({html,plain:emailText(html),message:'Skopiowano obecną treść. Zmiany asortymentu nadal czekają na zastosowanie.'});});
+$('copy-existing').addEventListener('click',()=>{const html=cleanEmail($('email-editor').innerHTML);pendingOverwrite=null;$('overwrite-dialog').close();if(!emailHasPrices(html,model(current).items)){toast('Ta wersja nie zawiera kompletu aktualnych cen. Ułóż mail z wyboru przed kopiowaniem.');return;}copy({html,plain:emailText(html),message:'Skopiowano obecną treść. Zmiany asortymentu nadal czekają na zastosowanie.'});});
 $('cancel-overwrite').addEventListener('click',()=>{pendingOverwrite=null;$('overwrite-dialog').close();});
 $('overwrite-dialog').addEventListener('cancel',()=>{pendingOverwrite=null;});
 
 function setupLibrary(){
   const prices=library.prices;
-  for(const product of library.catalog.products){
-    const attach=record=>{const identity=prices?.identities?.[record.sku];record.tradeIndex=identity?.tradeIndex||'';record.ean=identity?.ean||record.ean||record.specs?.EAN||'';record.prices=Object.fromEntries(Object.entries(prices?.bySku?.[record.sku]??{}).map(([key,value])=>[key,{...value,taxBasis:prices.feeds[key]?.taxBasis||value.taxBasis,currency:prices.feeds[key]?.currency||value.currency,updatedAt:prices.feeds[key]?.fetchedAt||prices.updatedAt}]));};
-    if(product.kind!=='family')attach(product);for(const variant of product.variants??[])attach(variant);
+  library.catalog.products=preparePricedCatalog(library.catalog.products,prices,library.featured);
+  for(const product of library.catalog.products){product.image=imageUrl(product.image);catalogById.set(product.id,product);}
+  for(const template of library.templates){
+    template.items=template.items.map(reference=>resolvePresetItem(reference,library.catalog.products)).filter(Boolean);
+    for(const item of template.items){item.image=imageUrl(item.image);originalItems.set(item.selectionId,item);}
   }
-  for(const product of library.catalog.products){product.image=imageUrl(product.image);catalogById.set(product.id,product);product.searchText=normalize([product.name,product.sku,product.tradeIndex,product.ean,product.family,product.categoryLabel,product.summary,...Object.values(product.specs??{}),...(product.variants??[]).flatMap(v=>[v.sku,v.tradeIndex,v.name,v.ean,...Object.values(v.specs??{})])].join(' '));}
-  for(const template of library.templates){template.items=template.items.map((item,index)=>{const product=[...catalogById.values()].find(p=>p.url===item.url||item.sku&&p.sku===item.sku);const enriched=product?{...catalogItem(product),...item,id:product.id,selectionId:product.id,specs:product.specs,kind:product.kind,warranty:warrantyLabel(product.warranty)}:{...item,selectionId:`category-${index}-${template.id}`};enriched.image=imageUrl(enriched.image);enriched.reason='';enriched.technical=identificationLine(enriched);originalItems.set(enriched.selectionId,enriched);return enriched;});}
   const categories=new Map(library.catalog.products.map(p=>[p.category,p.categoryLabel]));$('catalog-category').replaceChildren(new Option('Wszystkie kategorie','all'),...[...categories].map(([value,label])=>new Option(label,value)));
-  $('catalog-meta').textContent=`${library.catalog.products.length} produktów i rodzin · Stan katalogu: ${library.catalog.updated}. `;
+  $('catalog-meta').textContent=`Tylko produkty z potwierdzoną ceną · Polecane na start na początku · Stan katalogu: ${library.catalog.updated}. `;
   if(prices?.updatedAt)$('catalog-meta').append(document.createTextNode(`Cenniki: ${new Date(prices.updatedAt).toLocaleDateString('pl-PL')} · PLN netto. `));
   const link=element('a','','Otwórz katalog Prescot');link.href=config.catalogUrl;link.target='_blank';link.rel='noopener noreferrer';$('catalog-meta').append(link);
 }
@@ -111,17 +112,17 @@ function renderCatalog(reset=false){
   for(const product of found.slice(0,catalogLimit)){
     const card=element('article','catalog-card');card.dataset.id=product.id;
     if(product.image)card.append(photo(product.image,product.name,'catalog-photo'));else card.append(element('span','catalog-photo no-photo','Bez zdjęcia'));
-    const copy=element('div','catalog-copy');copy.append(element('span','catalog-kind',`${product.categoryLabel}${product.kind==='family'?' · Rodzina produktów':''}`),element('h3','',product.name),element('p','',product.summary));
+    const copy=element('div','catalog-copy');copy.append(element('span','catalog-kind',`${product.categoryLabel}${Number.isFinite(product.featuredRank)?' · Polecane na start':''}`),element('h3','',product.name),element('p','',product.summary));
     if(product.warranty)copy.append(element('small','',`Gwarancja: ${warrantyLabel(product.warranty)}`));
-    let variant=null;const identity=element('small','catalog-identification');copy.append(identity);
+    let variant=product.variants?.[0]||null;const identity=element('small','catalog-identification'),price=element('strong','catalog-price');copy.append(identity,price);
     const actions=element('div','catalog-actions');
     const item=()=>catalogItem(product,variant);
-    const update=()=>{identity.textContent=identificationLine(item());const selected=offer().items.some(i=>i.selectionId===item().selectionId);card.classList.toggle('selected',selected);add.textContent=selected?'Usuń z maila':'+ Dodaj do maila';add.setAttribute('aria-pressed',String(selected));$('catalog-result-count').textContent=`${Math.min(catalogLimit,found.length)} z ${found.length} wyników · W mailu: ${offer().items.length}`;};
-    const add=button('',()=>{const chosen=item(),items=offer().items,index=items.findIndex(i=>i.selectionId===chosen.selectionId);if(index<0)items.push(chosen);else items.splice(index,1);markDirty();renderSelected();update();},'button button-primary button-small');
+    const update=()=>{const chosen=item();identity.textContent=identificationLine(chosen);const info=priceInfo(chosen,chosen.display.price);price.textContent=info.available?`${info.label}: ${info.value}`:'';add.disabled=!info.available;const selected=offer().items.some(i=>i.selectionId===item().selectionId);card.classList.toggle('selected',selected);add.textContent=selected?'Usuń z maila':'+ Dodaj do maila';add.setAttribute('aria-pressed',String(selected));$('catalog-result-count').textContent=`${Math.min(catalogLimit,found.length)} z ${found.length} wyników · W mailu: ${offer().items.length}`;};
+    const add=button('',()=>{const chosen=item(),items=offer().items,index=items.findIndex(i=>i.selectionId===chosen.selectionId);if(index<0){if(!hasPrice(chosen))return;items.push(chosen);}else items.splice(index,1);markDirty();renderSelected();update();},'button button-primary button-small');
     if(product.variants?.length){
-      const variants=element('select','catalog-variant');variants.setAttribute('aria-label',`Wariant: ${product.name}`);variants.append(new Option('Cała rodzina — wariant do ustalenia',''));
+      const variants=element('select','catalog-variant');variants.setAttribute('aria-label',`Wariant: ${product.name}`);
       for(const v of product.variants)variants.append(new Option([v.tradeIndex,v.name!==v.sku?v.name:'',v.ean?`EAN ${v.ean}`:''].filter(Boolean).join(' · ')||'Wariant bez oznaczeń',v.sku));
-      const query=normalize($('catalog-search').value).trim();const matching=product.variants.find(v=>query&&(normalize(v.sku)===query||normalize(v.tradeIndex)===query||normalize(v.ean)===query))||($('catalog-warranty').value!=='all'&&product.variants.find(v=>warrantyYears(v.specs?.Gwarancja)===Number($('catalog-warranty').value)));if(matching){variant=matching;variants.value=matching.sku;}
+      const query=normalize($('catalog-search').value).trim();const matching=product.variants.find(v=>query&&(normalize(v.sku)===query||normalize(v.tradeIndex)===query||normalize(v.ean)===query))||($('catalog-warranty').value!=='all'&&product.variants.find(v=>warrantyYears(v.specs?.Gwarancja)===Number($('catalog-warranty').value)));if(matching)variant=matching;variants.value=variant.sku;
       variants.addEventListener('change',()=>{variant=product.variants.find(v=>v.sku===variants.value)||null;update();});card.append(variants);
     }
     const link=element('a','button button-quiet button-small','Karta produktu ↗');link.href=product.url;link.target='_blank';link.rel='noopener noreferrer';actions.append(add,link);card.append(copy,actions);update();$('catalog-results').append(card);
@@ -174,7 +175,7 @@ function renderConversation(){
       const id=candidate?(candidate.variantSku?`${candidate.id}::${candidate.variantSku}`:candidate.id):'';
       const row=element('label',candidate?'recommendation':'recommendation recommendation-skip'),radio=element('input');radio.type='radio';radio.name=`recommend-${group.key}`;radio.value=id;radio.checked=conversationChoices.get(group.key)===id;
       radio.addEventListener('change',()=>{conversationChoices.set(group.key,id);if(group.key==='strips'&&id)analyzeConversation(candidate.id,true);else conversationCount();});
-      const copy=element('span');if(candidate){const chosen=catalogItem(p,candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null);copy.append(element('strong','',chosen.name),element('small','',identificationLine(chosen)),element('small','',candidate.reasons.join(' · ')));const link=element('a','','Sprawdź kartę produktu ↗');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';copy.append(link);}else copy.textContent='Pomiń tę grupę';
+      const copy=element('span');if(candidate){const chosen=catalogItem(p,candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null);const price=priceInfo(chosen,chosen.display.price);copy.append(element('strong','',chosen.name),element('small','',identificationLine(chosen)),element('small','',candidate.reasons.join(' · ')),element('strong','recommendation-price',`${price.label}: ${price.value}`));const link=element('a','','Sprawdź kartę produktu ↗');link.href=p.url;link.target='_blank';link.rel='noopener noreferrer';copy.append(link);}else copy.textContent='Pomiń tę grupę';
       row.append(radio,copy);section.append(row);
     }
     $('conversation-groups').append(section);
@@ -184,7 +185,7 @@ function renderConversation(){
 $('analyze-conversation').addEventListener('click',()=>analyzeConversation());
 $('apply-conversation').addEventListener('click',()=>{
   if(!conversationResult)return;let added=0,typeChanged=false;if($('replace-assortment').checked)offer().items=[];
-  for(const group of conversationResult.groups){const selected=conversationChoices.get(group.key),candidate=group.products.find(p=>(p.variantSku?`${p.id}::${p.variantSku}`:p.id)===selected);if(!candidate)continue;const p=catalogById.get(candidate.id);if(!p)continue;const variant=candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null;const item=catalogItem(p,variant);if(offer().items.some(i=>i.selectionId===item.selectionId))continue;offer().items.push(item);added++;}
+  for(const group of conversationResult.groups){const selected=conversationChoices.get(group.key),candidate=group.products.find(p=>(p.variantSku?`${p.id}::${p.variantSku}`:p.id)===selected);if(!candidate)continue;const p=catalogById.get(candidate.id);if(!p)continue;const variant=candidate.variantSku?p.variants?.find(v=>v.sku===candidate.variantSku):null;const item=catalogItem(p,variant);if(!hasPrice(item))continue;if(offer().items.some(i=>i.selectionId===item.selectionId))continue;offer().items.push(item);added++;}
   if(conversationResult.customerType&&offer().config.customerType==='general'){typeChanged=true;offer().config.customerType=conversationResult.customerType;}
   if(added||typeChanged){markDirty();renderSelected();}else status();$('conversation-dialog').close();toast(added?`Dodano ${added} ${added===1?'propozycję':added<5?'propozycje':'propozycji'}. Ułóż mail, aby zobaczyć nowy asortyment.`:'Wybrane produkty są już w ofercie.');
 });
@@ -241,19 +242,26 @@ $('download-all').addEventListener('click',()=>{
   for(const t of library.templates){const prefix=`${(customs.has(t.id)?'＋':String(library.templates.indexOf(t)+1).padStart(2,'0'))}-${t.id}/`;files.push({name:prefix+'mail.html',content:htmlDocument(t.subject,renderEmail(t,'text'))},{name:prefix+'mail-ze-zdjeciami.html',content:htmlDocument(t.subject,renderEmail(t,'visual'))},{name:prefix+'mail.txt',content:`Temat: ${t.subject}\n\n${emailText(renderEmail(t,'text'))}\n`});}
   download('PRESCOT-10-maili.zip',createZip(files));toast('Pobrano 10 wzorów: HTML, wersje ze zdjęciami i TXT.');
 });
-$('save-project').addEventListener('click',()=>{save();const payload={type:'prescot-offer',version:1,templateId:current.id,pricesUpdatedAt:library.prices?.updatedAt||'',conversationNote:offer().conversationNote||'',reservePercent:offer().reservePercent??20,config:offer().config,items:offer().items.map(i=>({selectionId:i.selectionId,id:i.id,variantSku:i.variantSku,reason:i.reason||'',display:normalizeDisplay(i.display)})),generated:offer().generated,dirty:offer().dirty,subject:subject(current),subjectOverride:subjectOverrides.has(current.id),manual:manualEdits.has(current.id),mode,drafts:{text:fragment(current,'text'),visual:fragment(current,'visual')}};download('prescot-oferta-robocza.json',new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Zapisano plik roboczy na tym urządzeniu. Wczytasz go przy kolejnym logowaniu.');});
+$('save-project').addEventListener('click',()=>{save();const payload={type:'prescot-offer',version:1,pricingRequired:true,templateId:current.id,pricesUpdatedAt:library.prices?.updatedAt||'',conversationNote:offer().conversationNote||'',reservePercent:offer().reservePercent??20,config:offer().config,items:offer().items.map(i=>({selectionId:i.selectionId,id:i.id,variantSku:i.variantSku,reason:i.reason||'',display:normalizeDisplay(i.display)})),generated:offer().generated,dirty:offer().dirty,subject:subject(current),subjectOverride:subjectOverrides.has(current.id),manual:manualEdits.has(current.id),mode,drafts:{text:fragment(current,'text'),visual:fragment(current,'visual')}};download('prescot-oferta-robocza.json',new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));toast('Zapisano plik roboczy na tym urządzeniu. Wczytasz go przy kolejnym logowaniu.');});
 $('load-project').addEventListener('click',()=>$('project-file').click());
 $('project-file').addEventListener('change',async()=>{
   const file=$('project-file').files[0],activeSession=session;if(!file)return;
   try{
     if(file.size>2_000_000)throw new Error();const data=JSON.parse(await file.text());if(!library||session!==activeSession)return;
     if(data.type!=='prescot-offer'||data.version!==1||!Array.isArray(data.items)||data.items.length>200)throw new Error();
-    const items=data.items.map(raw=>{let item;const p=catalogById.get(raw.id);if(p){const variant=raw.variantSku?p.variants?.find(v=>v.sku===raw.variantSku):null;if(raw.variantSku&&!variant)throw new Error();item=catalogItem(p,variant);}else if(originalItems.has(raw.selectionId))item=structuredClone(originalItems.get(raw.selectionId));else throw new Error();item.reason=String(raw.reason||'').slice(0,300);item.display=normalizeDisplay(raw.display);return item;});
+    const items=data.items.map(raw=>{
+      const p=catalogById.get(raw.id);if(!p)return null;
+      const variant=raw.variantSku?p.variants?.find(v=>v.sku===raw.variantSku):null;if(raw.variantSku&&!variant)return null;
+      const item=catalogItem(p,variant);if(!hasPrice(item))return null;
+      item.reason=String(raw.reason||'').slice(0,300);item.display=pricedDisplay(item,raw.display);return item;
+    }).filter(Boolean);
+    const rebuild=data.pricingRequired!==true||items.length!==data.items.length;
+
     if(new Set(items.map(i=>i.selectionId)).size!==items.length)throw new Error();
-    const priceRefreshNeeded=items.some(i=>i.display.price!=='none')&&data.pricesUpdatedAt!==library.prices?.updatedAt;
+    const priceRefreshNeeded=items.length>0&&data.pricesUpdatedAt!==library.prices?.updatedAt;
     save();const base=library.templates.find(t=>t.id===data.templateId);const custom={...(base?structuredClone(base):newTemplate()),id:`oferta-${Date.now()}`,title:`Wczytana oferta ${customs.size+1}`,purpose:'Zapisana propozycja — możesz dopracować ją przed wysłaniem.'};
-    customs.set(custom.id,custom);offers.set(custom.id,{conversationNote:String(data.conversationNote||'').slice(0,3000),reservePercent:Number.isFinite(data.reservePercent)?Math.max(0,Math.min(50,data.reservePercent)):20,config:normalizeContext(data.config),items,generated:Boolean(data.generated),dirty:Boolean(data.dirty)||priceRefreshNeeded,priceRefreshNeeded});subjects.set(custom.id,String(data.subject||custom.subject).slice(0,300));subjectOverrides.delete(custom.id);if(data.subjectOverride)subjectOverrides.add(custom.id);manualEdits.delete(custom.id);if(data.manual)manualEdits.add(custom.id);
-    for(const format of ['text','visual']){drafts.delete(`${custom.id}:${format}`);if(typeof data.drafts?.[format]==='string')drafts.set(`${custom.id}:${format}`,cleanEmail(data.drafts[format]));}
-    mode=data.mode==='visual'?'visual':'text';select(custom.id,true,false);toast('Wczytano ofertę. Możesz zmienić produkty lub treść.');
+    customs.set(custom.id,custom);offers.set(custom.id,{conversationNote:String(data.conversationNote||'').slice(0,3000),reservePercent:Number.isFinite(data.reservePercent)?Math.max(0,Math.min(50,data.reservePercent)):20,config:normalizeContext(data.config),items,generated:true,dirty:Boolean(data.dirty)||priceRefreshNeeded,priceRefreshNeeded});subjects.set(custom.id,String(data.subject||custom.subject).slice(0,300));subjectOverrides.delete(custom.id);if(data.subjectOverride)subjectOverrides.add(custom.id);manualEdits.delete(custom.id);if(data.manual&&!rebuild)manualEdits.add(custom.id);
+    for(const format of ['text','visual']){drafts.delete(`${custom.id}:${format}`);if(!rebuild&&typeof data.drafts?.[format]==='string'){const html=cleanEmail(data.drafts[format]);if(emailHasPrices(html,model(custom).items))drafts.set(`${custom.id}:${format}`,html);}}
+    mode=data.mode==='visual'?'visual':'text';select(custom.id,true,false);toast(rebuild?'Wczytano ofertę. Pominięto pozycje bez ceny i odtworzono mail z aktualnymi cenami.':'Wczytano ofertę. Możesz zmienić produkty lub treść.');
   }catch{toast('Nie udało się wczytać oferty. Użyj pliku JSON zapisanego w tym kreatorze.');}finally{$('project-file').value='';}
 });

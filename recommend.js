@@ -1,3 +1,4 @@
+import {hasPrice} from './product-details.js?v=6';
 /**
  * Local, deterministic catalogue matching for a salesperson's Polish call note.
  * Like prescotled/catalog-parameters.mjs, numerical facts come from labelled
@@ -24,7 +25,7 @@ function channel(value) {
   return /rgbcct/.test(t) ? 'RGBCCT' : /rgbw/.test(t) ? 'RGBW' : /rgb/.test(t) ? 'RGB' : /cct/.test(t) ? 'CCT' : /mono/.test(t) ? 'MONO' : null;
 }
 function record(product, variant) {
-  const p = variant ? { ...product, name: variant.name, sku: variant.sku, tradeIndex:variant.tradeIndex, ean:variant.ean, specs: { ...product.specs, ...variant.specs } } : product;
+  const p = variant ? { ...product, name: variant.name, sku: variant.sku, kind:'product',variantSku:variant.sku,prices:variant.prices,tradeIndex:variant.tradeIndex, ean:variant.ean, specs: { ...product.specs, ...variant.specs } } : product;
   const name = normal([p.name, p.family].join(' '));
   const strip = p.category === 'tasmy';
   const supply = /\bzasilacz\b/.test(name) && Boolean(field(p, /wyjscie dc|napiecie wyjsciowe/));
@@ -173,7 +174,8 @@ const titles = { strips: 'Taśmy pasujące do opisu', supplies: 'Zasilacze do sp
 
 export function recommendProducts(text, products, options = {}) {
   const questions = [], criteria = [], groups = [], data = Array.isArray(products) ? products : [];
-  const rawText = normal(text).slice(0, 10000), exact = selectedRecords(data, rawText);
+  const eligible=record=>hasPrice(record.product);
+  const rawText = normal(text).slice(0, 10000), exact = selectedRecords(data, rawText).filter(eligible);
   // A symbol such as ...-RGB+WW is an identifier, not a separate RGB request.
   let parameterText = rawText;
   for (const match of exact) for (const value of [match.product.sku, match.product.tradeIndex, match.product.ean, match.product.specs?.EAN].filter(Boolean)) {
@@ -181,8 +183,9 @@ export function recommendProducts(text, products, options = {}) {
   }
   const c = parse(parameterText, questions);
   criteria.push(...c.criteria);
-  const records = data.map(p => record(p));
+  const records = data.flatMap(p=>p.kind==='family'?(p.variants??[]).map(v=>record(p,v)):[record(p)]).filter(eligible);
   const result = { criteria, groups, questions, summary: '', ...(c.customerType ? { customerType: c.customerType } : {}) };
+  if(!records.length){result.summary='Brak propozycji z potwierdzoną ceną.';questions.push('Zmień kryteria lub sprawdź aktualizację cennika. Produkty bez ceny nie są proponowane.');return result;}
   const group = (key, candidates, note) => { if (candidates.length) groups.push({ key, title: titles[key], products: candidates.slice(0, 3), ...(note ? { note } : {}) }); };
   if (c.conflict) { result.summary = 'Najpierw doprecyzuj rozbieżne parametry.'; return result; }
   if (c.requiresProtection) { result.summary = 'Przed doborem wykonania do tych warunków ustal wymagany stopień ochrony IP.'; return result; }

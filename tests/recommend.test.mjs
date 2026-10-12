@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recommendProducts } from '../recommend.js';
+import { recommendProducts as matchProducts } from '../recommend.js';
+
+// All numerical-matching fixtures have a confirmed neutral test price.
+const testPrices={wholesale:{amount:'10.00',currency:'PLN',taxBasis:'net',unit:'szt.'}};
+const recommendProducts=(text,products,options)=>matchProducts(text,products.map(p=>({...p,prices:p.prices??testPrices,variants:p.variants?.map(v=>({...v,prices:v.prices??testPrices}))})),options);
 
 function strip(id, overrides = {}) {
   return { id, sku: id, name: `Taśma LED ${id}`, category: 'tasmy', family: id, warranty: '5 lat', ...overrides,
@@ -233,4 +237,11 @@ test('strict bounds and unsupported parameter ranges are not treated as exact va
 test('uppercase Polish characters are normalized in accessory requests', () => {
   const result=recommendProducts('TAŚMA COB 24V 3000K I ZŁĄCZKI',products);
   assert.deepEqual(ids(result,'connectors'),['CONNECTOR-MONO']);
+});
+
+test('the default matcher never proposes unpriced products, even by exact trade index',()=>{
+  const unavailable=strip('UNPRICED',{tradeIndex:'TRADE-MISSING'});
+  assert.deepEqual(matchProducts('TRADE-MISSING',[unavailable]).groups,[]);
+  const priced=strip('PRICED',{prices:testPrices});
+  assert.deepEqual(ids(matchProducts('COB 24 V 3000 K',[unavailable,priced]),'strips'),['PRICED']);
 });

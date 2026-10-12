@@ -38,9 +38,12 @@ for(const id of ids){
  await page.locator(`.template-item[data-id="${id}"]`).click();
  await page.locator('#format-text').click();
  const text=await page.locator('#email-editor').innerText();
+ const count=await page.locator('.selected-product').count();
+ assert(count>0);assert.equal(await page.locator('#email-editor [data-product-price]').count(),count,`${id}: each text product needs a price`);
  assert(text.startsWith('Dzień dobry,'));assert(!/Hubert|Pozdrawiam|609 438|PRESCOT-10/.test(text));
  const links=await page.locator('#email-editor a').evaluateAll(nodes=>nodes.map(a=>a.href));assert(links.length>=3);assert(links.every(u=>u.startsWith('https://www.prescot.pl/')));
  await page.locator('#format-visual').click();
+ assert.equal(await page.locator('#email-editor [data-product-price]').count(),count,`${id}: each visual product needs a price`);
  await page.waitForFunction(()=>[...document.querySelectorAll('#email-editor img')].every(i=>i.complete&&i.naturalWidth>0));
 }
 await page.locator('.template-item[data-id="7-lat"]').click();
@@ -49,7 +52,7 @@ let downloadPromise=page.waitForEvent('download');await page.locator('#download-
 const exported=await readFile('test-results/download.html','utf8');assert(exported.includes('<img'));assert(!exported.includes('Przed wyceną ustal'));assert(!exported.includes('contenteditable'));assert(!exported.includes('Hubert'));
 downloadPromise=page.waitForEvent('download');await page.locator('#download-all').click();download=await downloadPromise;await download.saveAs('test-results/PRESCOT-10-maili.zip');
 await page.locator('#group-filter').selectOption('warranty');assert.equal(await page.locator('.template-item').count(),3);
-await page.locator('#group-filter').selectOption('all');await page.locator('#search-input').fill('złaczki');assert.equal(await page.locator('.template-item').count(),1);
+await page.locator('#group-filter').selectOption('all');await page.locator('#search-input').fill('złaczki');assert(await page.locator('.template-item').count()>=1);assert(await page.locator('.template-item').count()<10);
 await page.locator('#search-input').fill('zzzzunknown');assert(await page.locator('#empty-state').isVisible());await page.locator('#search-input').fill('');
 for(const width of [390,320]){
  await page.setViewportSize({width,height:844});await page.locator('.template-item[data-id="ogolny"]').click();

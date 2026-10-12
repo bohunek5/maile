@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { preparePricedCatalog } from '../priced-catalog.js';
 
 // Pass the password on stdin, e.g. from an interactive getpass prompt.
 // Catalog fixtures stay local; this test never stores credentials.
@@ -11,8 +12,12 @@ password = password.replace(/\r?\n$/, '');
 if (!password) throw new Error('Provide the test password on stdin.');
 
 const base = process.env.MAILE_TEST_URL || 'http://127.0.0.1:4179/';
-const { products } = JSON.parse(await readFile('private/catalog.json', 'utf8'));
-const { identities } = JSON.parse(await readFile('private/prices.json', 'utf8'));
+const rawCatalog = JSON.parse(await readFile('private/catalog.json', 'utf8'));
+const pricing = JSON.parse(await readFile('private/prices.json', 'utf8'));
+const settings = JSON.parse(await readFile('private/prices-settings.json', 'utf8'));
+for (const mode of ['wholesale','retail']) Object.assign(pricing.feeds[mode],settings[mode]);
+const products = preparePricedCatalog(rawCatalog.products,pricing);
+const { identities } = pricing;
 const product = products.find(item => item.kind === 'product' && item.sku && item.specs?.EAN && item.image && item.warranty && identities[item.sku]?.tradeIndex && identities[item.sku].tradeIndex !== item.sku);
 const family = products.find(item => item.kind === 'family' && item.image && item.variants?.some(variant => variant.ean && identities[variant.sku]?.tradeIndex && identities[variant.sku].tradeIndex !== variant.sku));
 const variant = family?.variants.find(item => item.ean && identities[item.sku]?.tradeIndex && identities[item.sku].tradeIndex !== item.sku);

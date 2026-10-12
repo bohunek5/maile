@@ -41,6 +41,9 @@ const products = [
   },
 ];
 
+const testPrices={wholesale:{amount:'10.00',currency:'PLN',taxBasis:'net',unit:'szt.'}};
+for(const p of products){if(p.kind!=='family')p.prices=testPrices;for(const v of p.variants??[])v.prices=testPrices;}
+
 const sales = {
   segments: {
     general: { subject: 'Propozycje produktów', opening: 'Dziękuję za rozmowę.', cta: 'Które produkty są potrzebne?' },
@@ -196,7 +199,7 @@ test('selected product order and individual rationale carry into the email witho
 });
 
 test('guarantees remain per product and absent guarantees are not invented', () => {
-  const mail = composeOffer(template, stateFor(products.map(product => catalogItem(product))), sales);
+  const mail = composeOffer(template, stateFor(products.map(product => catalogItem(product,product.variants?.[0]))), sales);
   assert.deepEqual(mail.items.map(item => item.warranty), ['7 lat', '5 lat', '3 lata', '']);
   assert.ok(!mail.intro.concat(mail.closing).some(line => /gwarancj/i.test(line)));
   assert.equal(warrantyLabel('24 miesiące'), '2 lata');
@@ -212,11 +215,11 @@ test('a variant-specific guarantee overrides the family guarantee', () => {
   assert.equal(catalogItem(family).warranty, '5 lat');
 });
 
-test('unresolved product families are identified, resolved variants are not labeled as families', () => {
+test('unresolved product families are excluded while priced variants remain', () => {
   const family = products[3];
   const unresolved = stateFor([catalogItem(family)]);
   const resolved = stateFor([catalogItem(family, family.variants[0])]);
-  assert.match(composeOffer(template, unresolved, sales).items[0].name, /rodzina/);
+  assert.deepEqual(composeOffer(template, unresolved, sales).items, []);
   assert.doesNotMatch(composeOffer(template, resolved, sales).items[0].name, /rodzina/);
   assert.ok(offerChecks(unresolved).some(check => /rodzina produktów/.test(check)));
   assert.ok(!offerChecks(resolved).some(check => /rodzina produktów/.test(check)));
@@ -272,7 +275,7 @@ test('imported context accepts supported choices and limits free text', () => {
 });
 
 test('changing visible data keeps template copy; changing assortment drops stale product-count promises',()=>{
-  const initial=stateFor();initial.items[0].display={voltage:true,price:'none'};
+  const initial=stateFor();initial.items[0].display={voltage:true,price:'wholesale'};
   assert.deepEqual(composeOffer(template,initial,sales).intro,template.intro);
   const changed=stateFor([catalogItem(products[2])]);
   assert.deepEqual(composeOffer(template,changed,sales).intro,[sales.segments.general.opening]);

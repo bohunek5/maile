@@ -10,8 +10,8 @@ const template={subject:'Test',intro:[],closing:[],items:[item]};
 const sales={segments:{general:{opening:'Dzień dobry',cta:'Jaka ilość?'}},stages:{first:{}}};
 const emailItem=display=>composeOffer(template,{config:defaultContext(),items:[{...item,display,reason:''}]},sales).items[0];
 
-test('field visibility affects both mail formats while defaults retain warranty only',()=>{
-  const initial=emailItem();assert.deepEqual(initial.details,[{label:'Gwarancja',value:'5 lat'}]);assert.equal(initial.price,null);
+test('field visibility affects both mail formats while defaults retain warranty and a wholesale price',()=>{
+  const initial=emailItem();assert.deepEqual(initial.details,[{label:'Gwarancja',value:'5 lat'}]);assert.equal(initial.price.available,true);
   const chosen=emailItem({warranty:false,voltage:true,power:true,brightness:true,energy:true,price:'retail'});
   for(const mode of ['text','visual']){
     const html=renderEmail({...template,items:[chosen]},mode);
@@ -21,7 +21,7 @@ test('field visibility affects both mail formats while defaults retain warranty 
     if(mode==='visual')assert.match(html,/assets\/energy\/F\.png/);
   }
   const hidden=renderEmail({...template,items:[emailItem({warranty:false})]},'visual');
-  assert.doesNotMatch(hidden,/Napięcie:|Moc:|Strumień|Klasa energetyczna|Cena|Gwarancja/);
+  assert.doesNotMatch(hidden,/Napięcie:|Moc:|Strumień|Klasa energetyczna|Gwarancja/);
 });
 test('power and flux keep channel meaning; supplies use output voltage',()=>{
   const facts=productFacts({specs:{'Napięcie wejściowe':'230 V AC','Napięcie wyjściowe':'24 V DC','Moc kanału białego':'6.4 W/m','Moc wszystkich kanałów':'25 W/m','Strumień kanału białego':'800 lm/m'}});
@@ -53,8 +53,8 @@ test('family prices cannot leak onto an unpriced variant',()=>{
   assert.equal(priceInfo(catalogItem(family,family.variants[1]),'retail').available,false);
 });
 test('imported display configuration accepts only supported booleans and price modes',()=>{
-  assert.deepEqual(normalizeDisplay({warranty:false,voltage:'true',energy:true,price:'attacker',amount:1}),{warranty:false,voltage:false,power:false,brightness:false,energy:true,price:'none'});
-  assert.equal(normalizeDisplay(null).price,'none');
+  assert.deepEqual(normalizeDisplay({warranty:false,voltage:'true',energy:true,price:'attacker',amount:1}),{warranty:false,voltage:false,power:false,brightness:false,energy:true,price:'wholesale'});
+  assert.equal(normalizeDisplay(null).price,'wholesale');
 });
 test('identification shows trade index and exact variant EAN, never a catalog SKU fallback',()=>{
   const product={...item,tradeIndex:'SALE-01',ean:'0000000000001'};

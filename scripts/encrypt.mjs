@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { randomBytes, pbkdf2Sync, createCipheriv } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import {preparePricedCatalog,resolvePresetItem} from '../priced-catalog.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let password = '';
@@ -20,6 +21,11 @@ for(const key of ['wholesale','retail']){
   Object.assign(data.prices.feeds[key],settings,{basisSource:'owner-confirmed'});
 }
 if (!data.catalog.products?.length) throw new Error('The catalogue is empty.');
+const pricedCatalog=preparePricedCatalog(data.catalog.products,data.prices,data.featured);
+for(const template of data.templates){
+  if(!template.items.length)throw new Error(`Template ${template.id} has no products.`);
+  for(const reference of template.items)if(!resolvePresetItem(reference,pricedCatalog))throw new Error(`Template ${template.id} contains an unpriced or unresolved product.`);
+}
 const salt = randomBytes(16), iv = randomBytes(12), iterations = 600000;
 const key = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
 password = '';
