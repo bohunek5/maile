@@ -1,3 +1,5 @@
+import { itemPresentation, normalizeDisplay, priceInfo, identificationLine } from './product-details.js';
+
 export const normalize = value => String(value ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/ł/g,'l');
 export const defaultContext = () => ({ customerType:'general', stage:'first', context:'', goal:'auto', nextStep:'' });
 
@@ -6,7 +8,7 @@ export function searchProducts(products, {query='',category='all',warranty='all'
   return products.filter(product => {
     if (category !== 'all' && product.category !== category) return false;
     if (warranty !== 'all' && ![product.warranty,...(product.variants ?? []).map(v=>v.specs?.Gwarancja)].some(value=>warrantyYears(value)===Number(warranty))) return false;
-    const haystack = product.searchText ?? normalize([product.name,product.sku,product.family,product.categoryLabel,product.summary,...Object.values(product.specs ?? {}),...(product.variants ?? []).flatMap(v=>[v.sku,v.name,v.ean])].join(' '));
+    const haystack = product.searchText ?? normalize([product.name,product.sku,product.tradeIndex,product.ean,product.family,product.categoryLabel,product.summary,...Object.values(product.specs ?? {}),...(product.variants ?? []).flatMap(v=>[v.sku,v.tradeIndex,v.name,v.ean])].join(' '));
     return tokens.every(token=>haystack.includes(token));
   });
 }
@@ -24,12 +26,15 @@ export function warrantyLabel(value) {
 
 export function catalogItem(product, variant) {
   const sku=variant?.sku || product.sku;
-  const name=variant ? `${product.name} · ${variant.name && variant.name!==sku ? variant.name : sku}` : product.name;
+  const identity=variant||product,ean=identity.ean||identity.specs?.EAN||'';
+  const name=variant ? `${product.name} · ${variant.name && variant.name!==sku ? variant.name : identity.tradeIndex||(ean?`EAN ${ean}`:'Wybrany wariant')}` : product.name;
   return {
     id:product.id,selectionId:variant ? `${product.id}::${sku}` : product.id,sku,name,
+    tradeIndex:identity.tradeIndex||'',ean:product.kind==='family'&&!variant?'':ean,
     url:product.url,image:product.image || '',description:product.summary || '',
     warranty:warrantyLabel(variant?.specs?.Gwarancja || product.warranty),category:product.category,kind:variant?'product':product.kind,
     family:product.family,variantSku:variant?.sku || '',specs:{...(product.specs ?? {}),...(variant?.specs ?? {})},reason:'',
+    prices:variant ? (variant.prices ?? {}) : product.kind==='family' ? {} : (product.prices ?? {}),display:normalizeDisplay(),
   };
 }
 
@@ -58,20 +63,23 @@ export function composeOffer(template,state,sales) {
   const isB2b=state.config.goal==='b2b' && !state.config.nextStep.trim();
   const items=state.items.map(item=>({
     ...item,description:item.reason.trim() || item.description,
-    warranty:warrantyLabel(item.warranty),technical:technicalLine(item),
+    warranty:warrantyLabel(item.warranty),technical:identificationLine(item),...itemPresentation({...item,warranty:warrantyLabel(item.warranty)}),
     name:item.kind==='family' && !item.variantSku ? `${item.name} — rodzina` : item.name,
   }));
-  return {...template,subject:stage.subject || segment.subject,intro,closing,items,links:isB2b?[sales.b2b]:[]};
+  const identity=item=>item.selectionId||item.id||item.sku;
+  const sameAssortment=template.items.length===state.items.length&&template.items.every(item=>state.items.some(selected=>identity(item)===identity(selected)));
+  const preserveTemplate=sameAssortment&&state.config.customerType==='general'&&state.config.stage==='first'&&!state.config.context.trim()&&state.config.goal==='auto'&&!state.config.nextStep.trim();
+  return preserveTemplate ? {...template,items} : {...template,subject:stage.subject || segment.subject,intro,closing,items,links:isB2b?[sales.b2b]:[]};
 }
 
 export function offerChecks(state) {
   const items=state.items,checks=[];
   if (!items.length) return ['Nie wybrano produktów — mail będzie zawierał samą treść rozmowy i następny krok.'];
-  if (!state.config.context.trim()) checks.push('Dodaj jedno zdanie z rozmowy, jeśli znasz już potrzebę klienta.');
   if (items.length>5) checks.push(`Wybrano ${items.length} pozycji. Przy pierwszej wiadomości rozważ pozostawienie najtrafniejszych propozycji.`);
   const years=[...new Set(items.map(i=>warrantyYears(i.warranty)).filter(Boolean))].sort((a,b)=>a-b);
-  if (years.length>1) checks.push(`Wybrane produkty mają różne okresy gwarancji (${years.join(', ')} lat). W mailu każdy otrzyma własne oznaczenie.`);
+  if (years.length>1) checks.push(`Wybrane produkty mają różne okresy gwarancji (${years.join(', ')} lat). Uwzględnij to w rozmowie z klientem.`);
   if (items.some(i=>i.kind==='family'&&!i.variantSku)) checks.push('W wyborze jest rodzina produktów. Wskaż wariant w katalogu albo ustal go z klientem.');
+  if(items.some(i=>i.display?.price&&i.display.price!=='none'&&!priceInfo(i,i.display.price).available)) checks.push('Część wybranych cen wymaga uzupełnienia danych. Nie zostaną dodane do maila.');
   const voltages=new Set();
   for (const item of items) {
     const entry=Object.entries(item.specs ?? {}).find(([key])=>/zasilanie dc|napiecie dc|napiecie wyjsciowe|wyjscie dc/.test(normalize(key)));

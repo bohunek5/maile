@@ -1,5 +1,16 @@
 export const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const paragraph = text => `<p style="margin:0 0 15px;font-size:15px;line-height:1.65;">${escapeHTML(text)}</p>`;
+function productDetails(item,visual) {
+  const style='margin:6px 0 0;font-size:12px;line-height:1.6;color:#53616d;';
+  const facts=item.details??(item.warranty?[{label:'Gwarancja',value:item.warranty}]:[]);
+  let html=facts.length?`<p style="${style}">${facts.map(f=>`${escapeHTML(f.label)}: ${escapeHTML(f.value)}`).join(' · ')}</p>`:'';
+  if(item.energy){
+    html+=`<p style="${style}">Klasa energetyczna: ${escapeHTML(item.energy.value)}</p>`;
+    if(visual)html+=`<p style="margin:4px 0 0;"><img src="${escapeHTML(item.energy.image)}" alt="Klasa energetyczna ${escapeHTML(item.energy.value)} w skali A–G" width="72" style="width:72px;max-width:100%;height:auto;display:block;border:0;"></p>`;
+  }
+  if(item.price)html+=`<p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#17344b;font-weight:bold;">${escapeHTML(item.price.label)}: ${escapeHTML(item.price.value)}</p>`;
+  return html;
+}
 
 export function renderEmail(template, mode = 'text') {
   let html = paragraph('Dzień dobry,') + template.intro.map(paragraph).join('');
@@ -12,7 +23,7 @@ export function renderEmail(template, mode = 'text') {
         html += `<td valign="top"><p style="margin:0 0 5px;font-size:15px;line-height:1.5;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer" style="color:#17344b;font-weight:bold;text-decoration:underline;">${escapeHTML(item.name)}</a></p>`;
         if (item.technical) html += `<p style="margin:0 0 5px;font-size:12px;line-height:1.5;color:#53616d;">${escapeHTML(item.technical)}</p>`;
         html += `<p style="margin:0;font-size:14px;line-height:1.6;">${escapeHTML(item.description)}</p>`;
-        if (item.warranty) html += `<p style="margin:6px 0 0;font-size:12px;line-height:1.5;color:#53616d;">Gwarancja: ${escapeHTML(item.warranty)}.</p>`;
+        html += productDetails(item,true);
         html += '</td></tr></table></td></tr>';
       }
       html += '</table><p style="margin:0 0 14px;"></p>';
@@ -21,12 +32,14 @@ export function renderEmail(template, mode = 'text') {
       for (const item of template.items) {
         html += `<li style="margin:0 0 11px;font-size:15px;line-height:1.6;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer" style="color:#17344b;font-weight:bold;text-decoration:underline;">${escapeHTML(item.name)}</a> — ${escapeHTML(item.description)}`;
         if (item.technical) html += `<br><span style="font-size:12px;color:#53616d;">${escapeHTML(item.technical)}</span>`;
-        if (item.warranty) html += ` Gwarancja: ${escapeHTML(item.warranty)}.`;
+        html += productDetails(item,false);
         html += '</li>';
       }
       html += '</ul>';
     }
   }
+  const priceDates=[...new Set(template.items.map(item=>item.price?.updatedAt).filter(value=>value&&Number.isFinite(Date.parse(value))).map(value=>new Date(value).toLocaleDateString('pl-PL')))];
+  if(priceDates.length)html+=`<p style="margin:0 0 15px;font-size:12px;line-height:1.6;color:#53616d;">Ceny według cennika z ${priceDates.map(escapeHTML).join(', ')}.</p>`;
   html += template.closing.map(paragraph).join('');
   if (template.links?.length) html += '<p style="margin:0 0 15px;font-size:14px;line-height:1.7;">' + template.links.map(link => `<a href="${escapeHTML(link.url)}" target="_blank" rel="noopener noreferrer" style="color:#a34911;text-decoration:underline;">${escapeHTML(link.label)}</a>`).join('<br>') + '</p>';
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#273744;width:100%;max-width:620px;">${html}</div>`;

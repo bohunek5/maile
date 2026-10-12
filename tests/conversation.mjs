@@ -5,6 +5,7 @@ let password='';for await (const chunk of process.stdin) password+=chunk;passwor
 assert(password,'Provide password via stdin.');
 const base=process.env.MAILE_TEST_URL||'http://127.0.0.1:4179/';
 const catalog=JSON.parse(await readFile('private/catalog.json','utf8')).products;
+const identities=JSON.parse(await readFile('private/prices.json','utf8')).identities;
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1000},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});
 const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -28,9 +29,9 @@ try {
  assert(calculation.includes(new Intl.NumberFormat('pl-PL',{maximumFractionDigits:2}).format(minimum)));
  await page.screenshot({path:'test-results/conversation-desktop.png'});
  const stripOptions=page.locator('input[name="recommend-strips"]').filter({visible:true});
- if(await stripOptions.count()>2){const second=stripOptions.nth(1);const secondId=await second.inputValue();await second.check();assert.equal(await page.locator('input[name="recommend-strips"]:checked').inputValue(),secondId);const selectedStrip=catalog.find(p=>p.id===secondId);assert((await page.locator('#conversation-calculation').innerText()).includes(selectedStrip.sku));}
+ if(await stripOptions.count()>2){const second=stripOptions.nth(1);const secondId=await second.inputValue();await second.check();assert.equal(await page.locator('input[name="recommend-strips"]:checked').inputValue(),secondId);const selectedStrip=catalog.find(p=>p.id===secondId);assert((await page.locator('#conversation-calculation').innerText()).includes(identities[selectedStrip.sku]?.tradeIndex||selectedStrip.name));}
  await page.locator('#apply-conversation').click();assert.equal(await page.locator('.selected-product').count(),2);
- assert.equal(await page.locator('#customer-type').inputValue(),'furniture');
+ assert.equal(await page.locator('#customer-type').count(),0);
  await page.locator('#apply-offer').click();const mail=await page.locator('#email-editor').innerText();assert(!mail.includes('Notatka wewnętrzna'));assert(mail.includes('Gwarancja'));
  // Replacing an existing preset is explicit, and private notes survive a draft file.
  await page.locator('.template-item[data-id="ogolny"]').click();
@@ -45,7 +46,7 @@ try {
  const projectDownload=page.waitForEvent('download');await page.locator('#save-project').click();
  const project=await projectDownload;await project.saveAs('test-results/conversation-draft.json');
  const draft=JSON.parse(await readFile('test-results/conversation-draft.json','utf8'));
- assert(draft.conversationNote.includes('Notatka wewnętrzna'));assert.equal(draft.reservePercent,20);
+ assert(draft.conversationNote.includes('Notatka wewnętrzna'));assert.equal(draft.reservePercent,20);assert.equal(draft.config.customerType,'furniture');
  await page.locator('#start-custom').click();await page.locator('#project-file').setInputFiles('test-results/conversation-draft.json');
  await page.locator('#toast').filter({hasText:'Wczytano ofertę.'}).waitFor();
  await page.locator('#open-conversation').click();assert.equal(await page.locator('#conversation-note').inputValue(),draft.conversationNote);await page.locator('#close-conversation').click();
@@ -53,7 +54,7 @@ try {
  for(const width of [1440,1920,1024,768,390,320]) {
   await page.setViewportSize({width,height:width>700?1000:844});await page.evaluate(()=>scrollTo(0,0));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`page overflow ${width}`);
-  const arrow=await page.locator('#customer-type').evaluate(el=>({appearance:getComputedStyle(el).appearance,padding:parseFloat(getComputedStyle(el).paddingRight),background:getComputedStyle(el).backgroundPosition}));
+  const arrow=await page.locator('#group-filter').evaluate(el=>({appearance:getComputedStyle(el).appearance,padding:parseFloat(getComputedStyle(el).paddingRight),background:getComputedStyle(el).backgroundPosition}));
   assert.equal(arrow.appearance,'none');assert(arrow.padding>=44);assert(arrow.background.includes('16px'));
   await page.screenshot({path:`test-results/design-${width}.png`,fullPage:width===1440||width===390});
  }

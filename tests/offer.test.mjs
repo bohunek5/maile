@@ -256,7 +256,6 @@ test('empty and overlong selections receive actionable checks instead of a score
   const items = Array.from({ length: 6 }, () => catalogItem(products[0]));
   const checks = offerChecks(stateFor(items));
   assert.ok(checks.some(check => /6 pozycji/.test(check)));
-  assert.ok(checks.some(check => /zdanie z rozmowy/.test(check)));
   assert.ok(checks.every(check => !/\d+\s*%/.test(check)));
 });
 
@@ -270,4 +269,11 @@ test('imported context accepts supported choices and limits free text', () => {
   assert.equal(accepted.context.length, 600);
   assert.equal(accepted.nextStep.length, 200);
   assert.deepEqual(normalizeContext({ customerType: 'unknown', stage: 'unknown', goal: 'unknown' }), defaultContext());
+});
+
+test('changing visible data keeps template copy; changing assortment drops stale product-count promises',()=>{
+  const initial=stateFor();initial.items[0].display={voltage:true,price:'none'};
+  assert.deepEqual(composeOffer(template,initial,sales).intro,template.intro);
+  const changed=stateFor([catalogItem(products[2])]);
+  assert.deepEqual(composeOffer(template,changed,sales).intro,[sales.segments.general.opening]);
 });

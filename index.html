@@ -9,7 +9,7 @@
     <meta name="description" content="Dopasuj ofertę Prescot do klienta, wybierz produkty i przygotuj mail po rozmowie.">
     <title>Kreator maili i ofert · Prescot</title>
     <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=5">
   </head>
   <body>
     <noscript><p style="padding:24px;font-family:Arial,sans-serif;">Włącz JavaScript w przeglądarce, aby otworzyć bibliotekę maili.</p></noscript>
@@ -98,56 +98,10 @@
               <span><strong>Opisz rozmowę</strong><small>Dobierz propozycje na podstawie potrzeb klienta</small></span>
               <svg class="entry-arrow" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
             </button>
-            <div class="builder-step builder-conversation">
-              <div class="builder-step-heading">
-                <h2><span class="step-number" aria-hidden="true">1</span> Dopasuj do rozmowy</h2>
-                <p>Kilka szczegółów pomoże przygotować trafniejszą wiadomość.</p>
-              </div>
-              <div class="builder-fields">
-                <div class="builder-field">
-                  <label for="customer-type">Do kogo piszesz?</label>
-                  <select id="customer-type">
-                    <option value="general">Ogólny</option>
-                    <option value="installer">Instalator</option>
-                    <option value="furniture">Producent mebli</option>
-                    <option value="wholesale">Hurtownia / sklep</option>
-                    <option value="architect">Architekt / projektant</option>
-                    <option value="advertising">Reklama / ekspozycja</option>
-                  </select>
-                </div>
-                <div class="builder-field">
-                  <label for="message-stage">Etap kontaktu</label>
-                  <select id="message-stage">
-                    <option value="first">Po rozmowie</option>
-                    <option value="offer">Po wysłanej ofercie</option>
-                    <option value="followup">Po braku odpowiedzi</option>
-                  </select>
-                </div>
-                <div class="builder-field builder-field-wide">
-                  <label for="customer-context">Nawiązanie do rozmowy <span>(opcjonalnie)</span></label>
-                  <textarea id="customer-context" maxlength="600" rows="2" placeholder="Np. Rozmawialiśmy o podświetleniu nowych regałów ciepłą bielą."></textarea>
-                </div>
-                <div class="builder-field">
-                  <label for="mail-goal">Co chcesz ustalić?</label>
-                  <select id="mail-goal">
-                    <option value="auto">Dobierz do odbiorcy</option>
-                    <option value="quote">Uzyskaj dane do wyceny</option>
-                    <option value="selection">Potwierdź wybór produktów</option>
-                    <option value="samples">Ustal próbki</option>
-                    <option value="meeting">Ustal rozmowę</option>
-                    <option value="b2b">Rozpocznij współpracę B2B</option>
-                  </select>
-                </div>
-                <div class="builder-field">
-                  <label for="next-step">Ustalony kolejny krok <span>(opcjonalnie)</span></label>
-                  <input id="next-step" type="text" maxlength="200" placeholder="Np. Czy możemy omówić warianty we wtorek o 10:00?">
-                </div>
-              </div>
-            </div>
             <div class="builder-step builder-assortment">
               <div class="assortment-heading">
                 <div class="builder-step-heading">
-                  <h2><span class="step-number" aria-hidden="true">2</span> Wybierz asortyment <span id="selected-count" class="selected-count"></span></h2>
+                  <h2>Wybierz asortyment <span id="selected-count" class="selected-count"></span></h2>
                   <p>Dodaj produkty pasujące do potrzeb klienta.</p>
                 </div>
                 <button id="open-catalog" type="button" class="button button-primary"><span aria-hidden="true">+</span> Dodaj / zmień produkty</button>
@@ -161,7 +115,7 @@
                 <button id="apply-offer" type="button" class="button button-primary">Ułóż mail z wyboru <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
                 <p id="builder-status" class="builder-status" role="status" aria-live="polite"></p>
               </div>
-              <p class="builder-hint">Wybrane produkty i nawiązanie do rozmowy trafiają do obu wersji maila.</p>
+              <p class="builder-hint">Wybrane produkty, parametry i ceny trafiają do obu wersji maila.</p>
             </div>
           </section>
 
@@ -305,6 +259,6 @@
       <textarea id="copy-fallback-text" rows="12" readonly></textarea>
       <button id="close-copy-fallback" type="button" class="button button-primary">Gotowe</button>
     </dialog>
-    <script type="module" src="app.js?v=4"></script>
+    <script type="module" src="app.js?v=5"></script>
   </body>
 </html>

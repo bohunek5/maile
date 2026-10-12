@@ -29,6 +29,14 @@ const products = [
 const group = (r, key) => r.groups.find(g => g.key === key)?.products || [];
 const ids = (r, key) => group(r, key).map(p => p.id);
 
+test('a trade index in a call note resolves the exact model or family variant',()=>{
+  const model=strip('INTERNAL-MODEL',{tradeIndex:'SALE0001'});
+  assert.deepEqual(ids(recommendProducts('Proszę SALE0001', [model]),'strips'),['INTERNAL-MODEL']);
+  const family={...products.find(p=>p.id==='PROFILE-WIDE'),variants:[{sku:'INTERNAL-VARIANT',tradeIndex:'TRADE0002',ean:'0000000000002',name:'Srebrny'}]};
+  const result=recommendProducts('Proszę TRADE0002',[family]);
+  assert.equal(group(result,'profiles')[0].variantSku,'INTERNAL-VARIANT');
+});
+
 test('matches all explicit strip parameters and explains catalogue facts', () => {
   const r = recommendProducts('Do kuchni 6 m taśmy COB 24 V 3000 K 9,6 W/m IP20 5 lat', products);
   assert.deepEqual(ids(r, 'strips'), ['COB-WARM-24']);
@@ -151,9 +159,9 @@ test('unrecognized notes and missing sizing facts ask useful questions', () => {
   assert.ok(insufficient.questions.some(q => /moc/i.test(q)));
 });
 
-test('no catalogue prices means no invented cheapest recommendation', () => {
+test('a budget request asks which price list applies instead of inventing cheapest recommendations', () => {
   const r = recommendProducts('Najtańsza taśma COB 24V ciepła, budżet ważny', products);
-  assert.ok(r.questions.some(q => /nie zawiera cen/.test(q)));
+  assert.ok(r.questions.some(q => /budżet i cennik klienta/.test(q)));
   assert.ok(group(r, 'strips').every(p => p.reasons.every(reason => !/najta|cena/.test(reason))));
 });
 

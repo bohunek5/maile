@@ -1,0 +1,66 @@
+import {chromium} from 'playwright';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+
+let password='';for await(const chunk of process.stdin)password+=chunk;password=password.replace(/\r?\n$/,'');
+if(!password)throw new Error('Pass password on stdin.');
+const base=process.env.MAILE_TEST_URL||'http://127.0.0.1:4179/';
+const {products}=JSON.parse(await readFile('private/catalog.json','utf8'));
+const snapshot=JSON.parse(await readFile('private/prices.json','utf8'));
+const product=products.find(p=>p.kind==='product'&&p.specs?.['Klasa energetyczna']&&p.specs?.['Strumień świetlny']&&snapshot.bySku[p.sku]?.wholesale?.unit&&snapshot.bySku[p.sku]?.retail?.unit);
+assert(product);
+const priceText=mode=>new Intl.NumberFormat('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:6}).format(Number(snapshot.bySku[product.sku][mode].amount))+' zł netto / '+snapshot.bySku[product.sku][mode].unit;
+await mkdir('test-results',{recursive:true});
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1100},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});
+const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+const editor=page.locator('#email-editor');
+const download=async(selector,path)=>{const pending=page.waitForEvent('download');await page.locator(selector).click();await(await pending).saveAs(path);return readFile(path,'utf8');};
+try{
+  await page.goto(base);await page.locator('#password').fill(password);await page.locator('#unlock-button').click();await page.locator('#workspace').waitFor({state:'visible'});password='';
+  await page.locator('#start-custom').click();await page.locator('#open-catalog').click();await page.locator('#catalog-search').fill(product.sku);
+  await page.locator(`.catalog-card[data-id=${JSON.stringify(product.id)}]`).getByRole('button',{name:'+ Dodaj do maila',exact:true}).click();
+  await page.locator('#catalog-done').click();
+  const controls=page.locator('.selected-product .product-details');
+  await controls.locator('summary').click();
+  for(const field of ['voltage','power','brightness','energy'])await controls.locator(`[data-field="${field}"]`).check();
+  await controls.locator('[data-field="warranty"]').uncheck();
+  await controls.locator('select').selectOption('wholesale');
+  await page.locator('#apply-offer').click();await page.locator('#format-visual').click();
+  assert.match(await editor.innerText(),/Napięcie:|Moc:|Strumień świetlny:/);
+  assert(!(await editor.innerText()).includes('Gwarancja:'));
+  assert((await editor.innerText()).includes(priceText('wholesale')));
+  assert((await editor.innerText()).includes('Indeks handlowy: '+snapshot.identities[product.sku].tradeIndex));assert((await editor.innerText()).includes('EAN: '+product.specs.EAN));assert(!(await editor.innerText()).includes(product.sku));
+  assert.equal(await page.locator('.product-reason,#customer-type,#customer-context').count(),0);
+  if(snapshot.bySku[product.sku].wholesale.packageLabel)assert((await editor.innerText()).includes(snapshot.bySku[product.sku].wholesale.packageLabel));
+  const badge=editor.locator('img[alt^="Klasa energetyczna"]');assert.equal(await badge.count(),1);
+  await badge.scrollIntoViewIfNeeded();await badge.evaluate(img=>img.decode());
+  assert((await badge.getAttribute('src')).startsWith(base));
+  const html=await download('#download-html','test-results/details-mail.html');
+  assert.match(html,/assets\/energy\/.*\.png/);assert(html.includes(priceText('wholesale')));
+  await page.locator('#copy-plain').click();let plain=await page.evaluate(()=>navigator.clipboard.readText());
+  assert(plain.includes('Klasa energetyczna: '+product.specs['Klasa energetyczna']));assert(plain.includes(priceText('wholesale')));
+  await page.locator('#format-text').click();assert((await editor.innerText()).includes(priceText('wholesale')));assert.match(await editor.innerText(),/Klasa energetyczna:/);
+  await controls.locator('select').selectOption('retail');await page.locator('#apply-offer').click();assert((await editor.innerText()).includes(priceText('retail')));
+  const draft=JSON.parse(await download('#save-project','test-results/details-offer.json'));
+  assert.equal(draft.items[0].display.price,'retail');assert.equal(draft.items[0].display.warranty,false);assert.equal(draft.items[0].display.energy,true);assert(draft.pricesUpdatedAt);
+  await page.locator('#project-file').setInputFiles('test-results/details-offer.json');
+  await page.getByText('Zapisana propozycja — możesz dopracować ją przed wysłaniem.',{exact:true}).waitFor();
+  await controls.locator('summary').click();assert.equal(await controls.locator('select').inputValue(),'retail');assert(await controls.locator('[data-field="energy"]').isChecked());assert(!await controls.locator('[data-field="warranty"]').isChecked());
+  const old={...draft,pricesUpdatedAt:'2000-01-01T00:00:00Z'};await writeFile('test-results/details-old.json',JSON.stringify(old));
+  await page.locator('#project-file').setInputFiles('test-results/details-old.json');await page.getByText('Cennik zmienił się od zapisu oferty. Ułóż mail ponownie, aby zastosować aktualne ceny.',{exact:true}).waitFor();
+  await page.locator('#apply-offer').click();assert.equal(await page.getByText('Cennik zmienił się od zapisu oferty.',{exact:false}).count(),0);
+  await controls.locator('summary').click();
+  await page.locator('#format-visual').click();
+  await controls.scrollIntoViewIfNeeded();await page.locator('.selected-product').screenshot({path:'test-results/details-controls-desktop.png'});
+  await editor.screenshot({path:'test-results/details-email.png'});
+  for(const width of [1920,1024,768,390,320]){
+    await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`overflow at ${width}`);
+    if(width===390)await page.locator('.selected-product').screenshot({path:'test-results/details-controls-mobile.png'});
+  }
+  await page.setViewportSize({width:1440,height:1100});
+  await controls.locator('select').selectOption('none');for(const field of ['voltage','power','brightness','energy'])await controls.locator(`[data-field="${field}"]`).uncheck();
+  await page.locator('#apply-offer').click();assert.doesNotMatch(await editor.innerText(),/Cena hurtowa|Cena detaliczna|Klasa energetyczna:|Napięcie:|Moc:|Strumień świetlny:/);assert.equal(await editor.locator('img[alt^="Klasa energetyczna"]').count(),0);
+  await page.locator('#lock-button').click();assert.equal(await page.locator('.product-price-mode').count(),0);assert.deepEqual(errors,[]);
+  console.log('Product details, official PNG, both net price lists, copy/HTML, draft roundtrip, stale prices, responsive layout and lock: passed.');
+}finally{await browser.close();}

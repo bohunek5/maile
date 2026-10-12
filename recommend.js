@@ -24,7 +24,7 @@ function channel(value) {
   return /rgbcct/.test(t) ? 'RGBCCT' : /rgbw/.test(t) ? 'RGBW' : /rgb/.test(t) ? 'RGB' : /cct/.test(t) ? 'CCT' : /mono/.test(t) ? 'MONO' : null;
 }
 function record(product, variant) {
-  const p = variant ? { ...product, name: variant.name, sku: variant.sku, specs: { ...product.specs, ...variant.specs } } : product;
+  const p = variant ? { ...product, name: variant.name, sku: variant.sku, tradeIndex:variant.tradeIndex, ean:variant.ean, specs: { ...product.specs, ...variant.specs } } : product;
   const name = normal([p.name, p.family].join(' '));
   const strip = p.category === 'tasmy';
   const supply = /\bzasilacz\b/.test(name) && Boolean(field(p, /wyjscie dc|napiecie wyjsciowe/));
@@ -124,7 +124,7 @@ function parse(text, questions) {
   else if (/\breklam|\bkaseton/.test(t)) result.customerType = 'advertising';
   const mount = matches(t, /\b(wpuszczan[a-z]*|natynkow[a-z]*|nawierzchniow[a-z]*|zwieszan[a-z]*)\b/g).map(m => /wpuszcz/.test(m[1]) ? 'wpuszcz' : /zwiesz/.test(m[1]) ? 'zwiesz' : 'nawierzchni|natynkow');
   if (unique(mount).length === 1) result.mount = mount[0];
-  if (/\btan(?:i|io|ie|szy|sze)|\bbudzet|\bcen[a-z]*\b/.test(t)) questions.push('Jaki jest budżet? Baza nie zawiera cen — warunki i wycenę trzeba potwierdzić.');
+  if (/\btan(?:i|io|ie|szy|sze)|\bbudzet|\bcen[a-z]*\b/.test(t)) questions.push('Jaki jest budżet i cennik klienta: hurtowy czy detaliczny? Dobór poniżej uwzględnia parametry; cenę możesz dodać przy wybranym produkcie.');
   const wetContext = /\blazien|\bzewnatrz|\bdworze|\bdeszcz|\bwilgo|\bmokr|\bwod[a-z]*\b/.test(t);
   if (wetContext && (!result.ip || result.ip.endsWith('0'))) {
     result.requiresProtection = true;
@@ -159,7 +159,7 @@ function selectedRecords(records, text) {
   for (const product of records) {
     const variants = product.variants || [];
     for (const variant of [null, ...variants]) {
-      const identifiers = [variant?.sku || product.sku, variant?.ean || (!variant ? product.specs?.EAN : '')].filter(value => String(value || '').length >= 4);
+      const identifiers = [variant?.sku || product.sku, variant ? variant.tradeIndex : product.tradeIndex, variant?.ean || (!variant ? product.ean||product.specs?.EAN : '')].filter(value => String(value || '').length >= 4);
       if (identifiers.some(value => {
         const escaped = escapeRegex(normal(value));
         const match = new RegExp(`(^|[^a-z0-9_.+-])(${escaped})(?=$|[^a-z0-9_.+-])`).exec(text);
@@ -176,7 +176,7 @@ export function recommendProducts(text, products, options = {}) {
   const rawText = normal(text).slice(0, 10000), exact = selectedRecords(data, rawText);
   // A symbol such as ...-RGB+WW is an identifier, not a separate RGB request.
   let parameterText = rawText;
-  for (const match of exact) for (const value of [match.product.sku, match.product.specs?.EAN].filter(Boolean)) {
+  for (const match of exact) for (const value of [match.product.sku, match.product.tradeIndex, match.product.ean, match.product.specs?.EAN].filter(Boolean)) {
     parameterText = parameterText.replace(new RegExp(`(^|[^a-z0-9_.+-])${escapeRegex(normal(value))}(?=$|[^a-z0-9_.+-])`, 'g'), '$1 ');
   }
   const c = parse(parameterText, questions);

@@ -12,6 +12,13 @@ const data = JSON.parse(await readFile(path.join(root, 'private/library.json'), 
 if (data.schemaVersion !== 1 || data.templates.length !== 10) throw new Error('Expected 10 templates.');
 data.catalog = JSON.parse(await readFile(path.join(root, 'private/catalog.json'), 'utf8'));
 data.sales = JSON.parse(await readFile(path.join(root, 'private/sales.json'), 'utf8'));
+data.prices = JSON.parse(await readFile(path.join(root, 'private/prices.json'), 'utf8'));
+const priceSettings=JSON.parse(await readFile(path.join(root, 'private/prices-settings.json'), 'utf8'));
+for(const key of ['wholesale','retail']){
+  const settings=priceSettings[key];
+  if(!['net','gross'].includes(settings?.taxBasis)||settings.currency!=='PLN')throw new Error('Confirm each feed currency and tax basis in private/prices-settings.json.');
+  Object.assign(data.prices.feeds[key],settings,{basisSource:'owner-confirmed'});
+}
 if (!data.catalog.products?.length) throw new Error('The catalogue is empty.');
 const salt = randomBytes(16), iv = randomBytes(12), iterations = 600000;
 const key = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
