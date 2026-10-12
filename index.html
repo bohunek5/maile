@@ -6,10 +6,10 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
     <meta name="theme-color" content="#f7f7f5">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="Biblioteka wiadomości Prescot dla zespołu handlowego.">
-    <title>Biblioteka maili · Prescot</title>
+    <meta name="description" content="Dopasuj ofertę Prescot do klienta, wybierz produkty i przygotuj mail po rozmowie.">
+    <title>Kreator maili i ofert · Prescot</title>
     <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2">
   </head>
   <body>
     <noscript><p style="padding:24px;font-family:Arial,sans-serif;">Włącz JavaScript w przeglądarce, aby otworzyć bibliotekę maili.</p></noscript>
@@ -20,8 +20,8 @@
           <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>
         </div>
         <p class="eyebrow">DLA ZESPOŁU HANDLOWEGO</p>
-        <h1 id="login-title">Biblioteka maili</h1>
-        <p class="login-description">Wpisz hasło, aby przejść do szablonów.</p>
+        <h1 id="login-title">Kreator maili i ofert</h1>
+        <p class="login-description">Dobierz produkty i przygotuj wiadomość do klienta.</p>
         <form id="unlock-form">
           <label for="password">Hasło dostępu</label>
           <div class="password-field">
@@ -31,7 +31,7 @@
             </button>
           </div>
           <p id="login-error" class="login-error" aria-live="polite"></p>
-          <button id="unlock-button" type="submit" class="button button-primary login-submit">Otwórz bibliotekę <span aria-hidden="true">→</span></button>
+          <button id="unlock-button" type="submit" class="button button-primary login-submit">Otwórz kreator <span aria-hidden="true">→</span></button>
         </form>
         <p class="login-footer">Wybierz wiadomość. Dopasuj. Wyślij.</p>
       </div>
@@ -42,12 +42,15 @@
         <div class="brand">
           <img src="assets/logo.svg" alt="Prescot LED" width="173" height="25">
           <span class="brand-divider" aria-hidden="true"></span>
-          <div class="brand-caption"><strong>Biblioteka maili</strong><span>DLA ZESPOŁU HANDLOWEGO</span></div>
+          <div class="brand-caption"><strong>Kreator maili i ofert</strong><span>DLA ZESPOŁU HANDLOWEGO</span></div>
         </div>
         <div class="header-actions">
+          <button id="save-project" type="button" class="button button-outline">Zapisz roboczą ofertę</button>
+          <button id="load-project" type="button" class="button button-quiet">Wczytaj ofertę</button>
+          <input id="project-file" type="file" accept=".json,application/json" hidden>
           <button id="download-all" type="button" class="button button-outline">
             <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>
-            Pobierz komplet
+            Pobierz wzory
           </button>
           <button id="lock-button" type="button" class="button button-quiet">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v2"/></svg>
@@ -60,6 +63,7 @@
         <aside class="sidebar" aria-label="Wybór szablonu">
           <div class="sidebar-heading"><h2>Szablony</h2><span id="result-count" class="result-count"></span></div>
           <p class="sidebar-description">Dobierz mail do rozmowy z klientem.</p>
+          <button id="start-custom" type="button" class="button button-outline start-custom"><span aria-hidden="true">+</span> Nowa oferta</button>
           <div class="sidebar-filters">
             <div class="search-field">
               <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
@@ -87,6 +91,74 @@
             <div id="template-tags" class="template-tags"></div>
           </section>
 
+          <section class="offer-builder" aria-label="Dopasowanie oferty">
+            <div class="builder-step">
+              <div class="builder-step-heading">
+                <h2><span class="step-number" aria-hidden="true">1</span> Dopasuj do rozmowy</h2>
+                <p>Kilka szczegółów pomoże przygotować trafniejszą wiadomość.</p>
+              </div>
+              <div class="builder-fields">
+                <div class="builder-field">
+                  <label for="customer-type">Do kogo piszesz?</label>
+                  <select id="customer-type">
+                    <option value="general">Ogólny</option>
+                    <option value="installer">Instalator</option>
+                    <option value="furniture">Producent mebli</option>
+                    <option value="wholesale">Hurtownia / sklep</option>
+                    <option value="architect">Architekt / projektant</option>
+                    <option value="advertising">Reklama / ekspozycja</option>
+                  </select>
+                </div>
+                <div class="builder-field">
+                  <label for="message-stage">Etap kontaktu</label>
+                  <select id="message-stage">
+                    <option value="first">Po rozmowie</option>
+                    <option value="offer">Po wysłanej ofercie</option>
+                    <option value="followup">Po braku odpowiedzi</option>
+                  </select>
+                </div>
+                <div class="builder-field builder-field-wide">
+                  <label for="customer-context">Nawiązanie do rozmowy <span>(opcjonalnie)</span></label>
+                  <textarea id="customer-context" maxlength="600" rows="2" placeholder="Np. Rozmawialiśmy o podświetleniu nowych regałów ciepłą bielą."></textarea>
+                </div>
+                <div class="builder-field">
+                  <label for="mail-goal">Co chcesz ustalić?</label>
+                  <select id="mail-goal">
+                    <option value="auto">Dobierz do odbiorcy</option>
+                    <option value="quote">Uzyskaj dane do wyceny</option>
+                    <option value="selection">Potwierdź wybór produktów</option>
+                    <option value="samples">Ustal próbki</option>
+                    <option value="meeting">Ustal rozmowę</option>
+                    <option value="b2b">Rozpocznij współpracę B2B</option>
+                  </select>
+                </div>
+                <div class="builder-field">
+                  <label for="next-step">Ustalony kolejny krok <span>(opcjonalnie)</span></label>
+                  <input id="next-step" type="text" maxlength="200" placeholder="Np. Czy możemy omówić warianty we wtorek o 10:00?">
+                </div>
+              </div>
+            </div>
+            <div class="builder-step builder-assortment">
+              <div class="assortment-heading">
+                <div class="builder-step-heading">
+                  <h2><span class="step-number" aria-hidden="true">2</span> Wybierz asortyment <span id="selected-count" class="selected-count"></span></h2>
+                  <p>Dodaj produkty pasujące do potrzeb klienta.</p>
+                </div>
+                <button id="open-catalog" type="button" class="button button-primary"><span aria-hidden="true">+</span> Dodaj / zmień produkty</button>
+              </div>
+              <div id="selected-products" class="selected-products"></div>
+              <p id="selection-hint" class="selection-hint"></p>
+              <div id="offer-checks" class="offer-checks" role="status" aria-live="polite"></div>
+            </div>
+            <div class="builder-footer">
+              <div>
+                <button id="apply-offer" type="button" class="button button-primary">Ułóż mail z wyboru <span aria-hidden="true">↓</span></button>
+                <p id="builder-status" class="builder-status" role="status" aria-live="polite"></p>
+              </div>
+              <p class="builder-hint">Wybrane produkty i nawiązanie do rozmowy trafiają do obu wersji maila.</p>
+            </div>
+          </section>
+
           <section class="composer" aria-label="Edytor wiadomości">
             <div class="subject-row">
               <label for="subject-input">Temat</label>
@@ -108,12 +180,13 @@
                   Ze zdjęciami
                 </button>
               </div>
+              <span id="mail-length" class="mail-length"></span>
               <button id="reset-template" type="button" class="button button-quiet button-small">
                 <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v6h6M3.8 10a8.5 8.5 0 1 1-.3 5"/></svg>
                 Przywróć wzór
               </button>
             </div>
-            <p class="edit-hint">Możesz poprawić temat i treść przed skopiowaniem. Wariant z linkami i wariant ze zdjęciami edytujesz osobno.</p>
+            <p class="edit-hint">Treść możesz dopracować ręcznie. Zmiany asortymentu zastosujesz przyciskiem „Ułóż mail z wyboru”.</p>
             <div class="email-paper">
               <div id="email-editor" contenteditable="true" role="textbox" aria-label="Treść wiadomości" aria-multiline="true" spellcheck="true"></div>
             </div>
@@ -143,6 +216,58 @@
       </div>
     </div>
 
+    <dialog id="catalog-dialog" class="catalog-dialog" aria-labelledby="catalog-title">
+      <div class="catalog-header">
+        <div>
+          <p class="eyebrow">ASORTYMENT PRESCOT</p>
+          <h2 id="catalog-title">Wybierz produkty z katalogu Prescot</h2>
+          <p id="catalog-meta" class="catalog-meta"></p>
+        </div>
+        <button id="close-catalog" type="button" class="button button-quiet catalog-close" aria-label="Zamknij wybór produktów">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="catalog-filters">
+        <div class="search-field catalog-search-field">
+          <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+          <label for="catalog-search" class="sr-only">Szukaj produktu</label>
+          <input id="catalog-search" type="search" placeholder="Nazwa, symbol, EAN, np. 24 V COB…" autocomplete="off">
+        </div>
+        <label for="catalog-category" class="sr-only">Kategoria produktów</label>
+        <select id="catalog-category"></select>
+        <label for="catalog-warranty" class="sr-only">Gwarancja</label>
+        <select id="catalog-warranty">
+          <option value="all">Wszystkie gwarancje</option>
+          <option value="7">7 lat</option>
+          <option value="5">5 lat</option>
+          <option value="3">3 lata</option>
+          <option value="2">2 lata</option>
+        </select>
+        <button id="catalog-clear" type="button" class="button button-quiet button-small">Wyczyść filtry</button>
+      </div>
+      <div class="catalog-scroll">
+        <div id="catalog-results" class="catalog-results"></div>
+        <div id="catalog-empty" class="catalog-empty" hidden><strong>Brak produktów pasujących do wyszukiwania</strong><p>Zmień nazwę, symbol lub wybrane filtry.</p></div>
+      </div>
+      <div class="catalog-footer">
+        <span id="catalog-result-count" class="catalog-result-count" role="status" aria-live="polite"></span>
+        <div class="catalog-footer-actions">
+          <button id="catalog-more" type="button" class="button button-outline">Pokaż kolejne</button>
+          <button id="catalog-done" type="button" class="button button-primary">Gotowe — wróć do maila</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="overwrite-dialog" class="copy-dialog overwrite-dialog" aria-labelledby="overwrite-title">
+      <h2 id="overwrite-title">Odświeżyć treść maila?</h2>
+      <p>Wprowadzone ręcznie poprawki zastąpię treścią z wybranego asortymentu. Wybierz „Zachowaj poprawki”, aby wrócić do edycji.</p>
+      <div class="dialog-actions">
+        <button id="copy-existing" type="button" class="button button-quiet">Kopiuj obecną treść</button>
+        <button id="cancel-overwrite" type="button" class="button button-outline">Zachowaj poprawki</button>
+        <button id="confirm-overwrite" type="button" class="button button-primary">Ułóż nową treść</button>
+      </div>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <dialog id="copy-fallback" class="copy-dialog" aria-labelledby="copy-fallback-title">
       <h2 id="copy-fallback-title">Skopiuj treść ręcznie</h2>
@@ -151,6 +276,6 @@
       <textarea id="copy-fallback-text" rows="12" readonly></textarea>
       <button id="close-copy-fallback" type="button" class="button button-primary">Gotowe</button>
     </dialog>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=2"></script>
   </body>
 </html>

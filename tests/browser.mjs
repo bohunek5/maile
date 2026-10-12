@@ -32,7 +32,7 @@ await page.locator('#copy-subject').click();await page.locator('#toast').filter(
 await page.locator('#email-editor').evaluate(el=>{el.insertAdjacentHTML('beforeend','<p>Dodatkowe ustalenia klienta.</p>');el.dispatchEvent(new Event('input',{bubbles:true}));});
 await page.locator('#format-visual').click();assert((await page.locator('#email-editor img').count())>0);
 await page.locator('#format-text').click();assert((await page.locator('#email-editor').textContent()).includes('Dodatkowe ustalenia klienta.'));
-await page.locator('#reset-template').click();assert(!(await page.locator('#email-editor').textContent()).includes('Dodatkowe ustalenia klienta.'));
+await page.locator('#reset-template').click();await page.locator('#confirm-overwrite').click();assert(!(await page.locator('#email-editor').textContent()).includes('Dodatkowe ustalenia klienta.'));
 const ids=await page.locator('.template-item').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
 for(const id of ids){
  await page.locator(`.template-item[data-id="${id}"]`).click();

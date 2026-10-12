@@ -9,7 +9,9 @@ export function renderEmail(template, mode = 'text') {
       for (const item of template.items) {
         html += `<tr><td style="padding:15px 0;border-top:1px solid #e5e9ed;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;"><tr>`;
         if (item.image) html += `<td width="106" valign="middle" style="width:106px;padding:0 16px 0 0;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHTML(item.image)}" alt="${escapeHTML(item.name)}" width="90" style="width:90px;max-width:100%;height:auto;display:block;border:0;"></a></td>`;
-        html += `<td valign="top"><p style="margin:0 0 5px;font-size:15px;line-height:1.5;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer" style="color:#17344b;font-weight:bold;text-decoration:underline;">${escapeHTML(item.name)}</a></p><p style="margin:0;font-size:14px;line-height:1.6;">${escapeHTML(item.description)}</p>`;
+        html += `<td valign="top"><p style="margin:0 0 5px;font-size:15px;line-height:1.5;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer" style="color:#17344b;font-weight:bold;text-decoration:underline;">${escapeHTML(item.name)}</a></p>`;
+        if (item.technical) html += `<p style="margin:0 0 5px;font-size:12px;line-height:1.5;color:#53616d;">${escapeHTML(item.technical)}</p>`;
+        html += `<p style="margin:0;font-size:14px;line-height:1.6;">${escapeHTML(item.description)}</p>`;
         if (item.warranty) html += `<p style="margin:6px 0 0;font-size:12px;line-height:1.5;color:#53616d;">Gwarancja: ${escapeHTML(item.warranty)}.</p>`;
         html += '</td></tr></table></td></tr>';
       }
@@ -18,6 +20,7 @@ export function renderEmail(template, mode = 'text') {
       html += '<ul style="padding:0 0 0 21px;margin:0 0 19px;">';
       for (const item of template.items) {
         html += `<li style="margin:0 0 11px;font-size:15px;line-height:1.6;"><a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer" style="color:#17344b;font-weight:bold;text-decoration:underline;">${escapeHTML(item.name)}</a> — ${escapeHTML(item.description)}`;
+        if (item.technical) html += `<br><span style="font-size:12px;color:#53616d;">${escapeHTML(item.technical)}</span>`;
         if (item.warranty) html += ` Gwarancja: ${escapeHTML(item.warranty)}.`;
         html += '</li>';
       }
@@ -43,7 +46,7 @@ export function cleanEmail(source) {
           if (!safeStyles.has(property) || /url\s*\(|expression|javascript|var\s*\(/i.test(node.style.getPropertyValue(property))) node.style.removeProperty(property);
         }
       } else if ((name === 'href' && node.tagName === 'A') || (name === 'src' && node.tagName === 'IMG')) {
-        try { const u = new URL(value); if (!(name === 'src' ? ['https:'] : ['https:','http:','mailto:','tel:']).includes(u.protocol)) node.removeAttribute(name); }
+        try { const u = new URL(value); if (!(name === 'src' ? ['https:', ...(globalThis.location?.hostname === '127.0.0.1' && u.hostname === '127.0.0.1' ? ['http:'] : [])] : ['https:','http:','mailto:','tel:']).includes(u.protocol)) node.removeAttribute(name); }
         catch { node.removeAttribute(name); }
       } else if (name === 'alt' && node.tagName === 'IMG') {
         // Plain text attribute; leave unchanged.
