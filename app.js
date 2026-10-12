@@ -1,7 +1,7 @@
 import { unlockLibrary } from './crypto.js';
 import { renderEmail, cleanEmail, emailText, htmlDocument, escapeHTML } from './email.js?v=2';
 import { createZip } from './zip.js';
-import { recommendProducts } from './recommend.js?v=3';
+import { recommendProducts } from './recommend.js?v=4';
 import { config, imageUrl } from './config.js';
 import { normalize, makeOfferState, catalogItem, composeOffer, offerChecks, searchProducts, warrantyLabel, warrantyYears, technicalLine, normalizeContext } from './offer.js';
 

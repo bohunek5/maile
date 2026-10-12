@@ -4,7 +4,7 @@
  * fields: an AC input voltage must never stand in for a DC output voltage.
  * Scores order matching records; they are not probabilities of compatibility.
  */
-const normal = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').toLowerCase();
+const normal = value => String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
 const number = value => Number(String(value).replace(',', '.'));
 const fmt = value => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 3 }).format(value);
 const unique = values => [...new Set(values)];

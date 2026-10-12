@@ -221,3 +221,8 @@ test('strict bounds and unsupported parameter ranges are not treated as exact va
     assert.ok(result.questions.some(q=>/zakres lub granicę/.test(q)));
   }
 });
+
+test('uppercase Polish characters are normalized in accessory requests', () => {
+  const result=recommendProducts('TAŚMA COB 24V 3000K I ZŁĄCZKI',products);
+  assert.deepEqual(ids(result,'connectors'),['CONNECTOR-MONO']);
+});
