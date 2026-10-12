@@ -1,0 +1,72 @@
+import { chromium } from 'playwright';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+let password='';for await (const chunk of process.stdin) password+=chunk;password=password.trimEnd();
+assert(password,'Provide password via stdin.');
+const base=process.env.MAILE_TEST_URL||'http://127.0.0.1:4179/';
+const catalog=JSON.parse(await readFile('private/catalog.json','utf8')).products;
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1000},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});
+const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
+await mkdir('test-results',{recursive:true});
+try {
+ await page.goto(base);await page.locator('#password').fill(password);await page.locator('#unlock-button').click();await page.locator('#workspace').waitFor({state:'visible'});password='';
+ await page.locator('#start-custom').click();await page.locator('#open-conversation').click();
+ await page.locator('#conversation-note').fill('Stolarz potrzebuje taśmy COB do 6 m oświetlenia mebli, 24 V, ciepła biel 3000 K i zasilacza. Notatka wewnętrzna klienta.');
+ await page.locator('#analyze-conversation').click();await page.locator('#conversation-results').waitFor({state:'visible'});
+ assert((await page.locator('#conversation-criteria').innerText()).includes('24 V'));
+ assert(await page.locator('#conversation-calculation').isVisible());
+ const choice=await page.locator('input[name="recommend-strips"]:checked').inputValue();
+ const strip=catalog.find(p=>p.id===choice);assert(strip);
+ const watts=Number(strip.specs.Moc.match(/[\d,\.]+/)[0].replace(',','.'));
+ const load=6*watts,minimum=load/.8;
+ const supplyId=await page.locator('input[name="recommend-supplies"]:checked').inputValue();
+ const supply=catalog.find(p=>p.id===supplyId);assert(supply);
+ const nominal=Number((supply.specs['Moc znamionowa']||supply.specs.Moc).match(/[\d,\.]+/)[0].replace(',','.'));
+ assert(nominal>=minimum);
+ const calculation=await page.locator('#conversation-calculation').innerText();
+ assert(calculation.includes(new Intl.NumberFormat('pl-PL',{maximumFractionDigits:2}).format(minimum)));
+ await page.screenshot({path:'test-results/conversation-desktop.png'});
+ const stripOptions=page.locator('input[name="recommend-strips"]').filter({visible:true});
+ if(await stripOptions.count()>2){const second=stripOptions.nth(1);const secondId=await second.inputValue();await second.check();assert.equal(await page.locator('input[name="recommend-strips"]:checked').inputValue(),secondId);const selectedStrip=catalog.find(p=>p.id===secondId);assert((await page.locator('#conversation-calculation').innerText()).includes(selectedStrip.sku));}
+ await page.locator('#apply-conversation').click();assert.equal(await page.locator('.selected-product').count(),2);
+ assert.equal(await page.locator('#customer-type').inputValue(),'furniture');
+ await page.locator('#apply-offer').click();const mail=await page.locator('#email-editor').innerText();assert(!mail.includes('Notatka wewnętrzna'));assert(mail.includes('Gwarancja'));
+ // Replacing an existing preset is explicit, and private notes survive a draft file.
+ await page.locator('.template-item[data-id="ogolny"]').click();
+ assert.equal(await page.locator('.selected-product').count(),4);
+ await page.locator('#open-conversation').click();
+ await page.locator('#conversation-note').fill('Stolarz: COB 24 V 3000 K, 6 m i zasilacz. Notatka wewnętrzna klienta.');
+ await page.locator('#analyze-conversation').click();
+ await page.locator('#replace-assortment').check();
+ await page.locator('#apply-conversation').click();
+ assert.equal(await page.locator('.selected-product').count(),2);
+ await page.locator('#apply-offer').click();
+ const projectDownload=page.waitForEvent('download');await page.locator('#save-project').click();
+ const project=await projectDownload;await project.saveAs('test-results/conversation-draft.json');
+ const draft=JSON.parse(await readFile('test-results/conversation-draft.json','utf8'));
+ assert(draft.conversationNote.includes('Notatka wewnętrzna'));assert.equal(draft.reservePercent,20);
+ await page.locator('#start-custom').click();await page.locator('#project-file').setInputFiles('test-results/conversation-draft.json');
+ await page.locator('#toast').filter({hasText:'Wczytano ofertę.'}).waitFor();
+ await page.locator('#open-conversation').click();assert.equal(await page.locator('#conversation-note').inputValue(),draft.conversationNote);await page.locator('#close-conversation').click();
+ assert(!(await page.locator('#email-editor').innerText()).includes('Notatka wewnętrzna'));
+ for(const width of [1440,1920,1024,768,390,320]) {
+  await page.setViewportSize({width,height:width>700?1000:844});await page.evaluate(()=>scrollTo(0,0));
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`page overflow ${width}`);
+  const arrow=await page.locator('#customer-type').evaluate(el=>({appearance:getComputedStyle(el).appearance,padding:parseFloat(getComputedStyle(el).paddingRight),background:getComputedStyle(el).backgroundPosition}));
+  assert.equal(arrow.appearance,'none');assert(arrow.padding>=44);assert(arrow.background.includes('16px'));
+  await page.screenshot({path:`test-results/design-${width}.png`,fullPage:width===1440||width===390});
+ }
+ await page.locator('#open-conversation').click();
+ assert((await page.locator('#conversation-note').inputValue()).includes('Notatka wewnętrzna'));
+ await page.locator('#analyze-conversation').click();
+ assert(await page.evaluate(()=>{const d=document.querySelector('#conversation-dialog');return d.scrollWidth<=d.clientWidth+1;}));
+ await page.screenshot({path:'test-results/conversation-mobile.png'});
+ await page.locator('#conversation-note').fill('Dzień dobry. Klient prosi o kontakt.');await page.locator('#analyze-conversation').click();assert(await page.locator('#apply-conversation').isDisabled());assert((await page.locator('#conversation-questions').innerText()).length>0);
+ await page.locator('#conversation-note').fill('Taśma COB 12 V i 24 V');await page.locator('#analyze-conversation').click();assert(await page.locator('#apply-conversation').isDisabled());
+ await page.locator('#close-conversation').click();
+ await page.locator('#lock-button').click();assert.equal(await page.locator('#conversation-note').inputValue(),'');assert.equal(await page.locator('#conversation-groups').innerText(),'');
+ assert.deepEqual(errors,[]);
+ await writeFile('test-results/conversation-result.json',JSON.stringify({passed:true,calculation:true,selection:true,privateNotes:true,responsive:[1440,1920,1024,768,390,320],insetSelectArrows:true,unknownAndConflictingInputs:true,lock:true},null,2));
+ console.log('PASS: call-note matching, power calculation, selection, private notes, responsive design, inset arrows, unknown/conflicting input, lock.');
+} finally {await browser.close();}
