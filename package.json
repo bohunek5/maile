@@ -1,0 +1,10 @@
+{
+  "name": "prescot-maile",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/encrypt.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "preview": "python3 -m http.server 4179 --bind 127.0.0.1"
+  }
+}

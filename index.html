@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-src 'none'">
+    <meta name="theme-color" content="#f7f7f5">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Biblioteka wiadomości Prescot dla zespołu handlowego.">
+    <title>Biblioteka maili · Prescot</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <noscript><p style="padding:24px;font-family:Arial,sans-serif;">Włącz JavaScript w przeglądarce, aby otworzyć bibliotekę maili.</p></noscript>
+    <section id="lock-screen" class="lock-screen" aria-labelledby="login-title">
+      <div class="login-card">
+        <img class="login-logo" src="assets/logo.svg" alt="Prescot LED" width="196" height="28">
+        <div class="login-mark" aria-hidden="true">
+          <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>
+        </div>
+        <p class="eyebrow">DLA ZESPOŁU HANDLOWEGO</p>
+        <h1 id="login-title">Biblioteka maili</h1>
+        <p class="login-description">Wpisz hasło, aby przejść do szablonów.</p>
+        <form id="unlock-form">
+          <label for="password">Hasło dostępu</label>
+          <div class="password-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+            <button id="toggle-password" type="button" class="icon-button" aria-label="Pokaż hasło" aria-pressed="false">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <p id="login-error" class="login-error" aria-live="polite"></p>
+          <button id="unlock-button" type="submit" class="button button-primary login-submit">Otwórz bibliotekę <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="login-footer">Wybierz wiadomość. Dopasuj. Wyślij.</p>
+      </div>
+    </section>
+
+    <div id="workspace" hidden>
+      <header class="app-header">
+        <div class="brand">
+          <img src="assets/logo.svg" alt="Prescot LED" width="173" height="25">
+          <span class="brand-divider" aria-hidden="true"></span>
+          <div class="brand-caption"><strong>Biblioteka maili</strong><span>DLA ZESPOŁU HANDLOWEGO</span></div>
+        </div>
+        <div class="header-actions">
+          <button id="download-all" type="button" class="button button-outline">
+            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>
+            Pobierz komplet
+          </button>
+          <button id="lock-button" type="button" class="button button-quiet">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v2"/></svg>
+            Zablokuj
+          </button>
+        </div>
+      </header>
+
+      <div class="app-layout">
+        <aside class="sidebar" aria-label="Wybór szablonu">
+          <div class="sidebar-heading"><h2>Szablony</h2><span id="result-count" class="result-count"></span></div>
+          <p class="sidebar-description">Dobierz mail do rozmowy z klientem.</p>
+          <div class="sidebar-filters">
+            <div class="search-field">
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+              <label for="search-input" class="sr-only">Szukaj szablonu</label>
+              <input id="search-input" type="search" placeholder="Szukaj szablonu…" autocomplete="off">
+            </div>
+            <label for="group-filter" class="sr-only">Grupa szablonów</label>
+            <select id="group-filter">
+              <option value="all">Wszystkie grupy</option>
+              <option value="start">Pierwszy kontakt</option>
+              <option value="warranty">Gwarancja</option>
+              <option value="product">Produkty</option>
+            </select>
+          </div>
+          <nav id="template-list" class="template-list" aria-label="Szablony wiadomości"></nav>
+          <div id="empty-state" class="empty-state" hidden><strong>Brak pasujących szablonów</strong><p>Wpisz inne hasło lub zmień grupę.</p></div>
+          <div class="sidebar-tip"><span class="tip-dot" aria-hidden="true"></span><p>Gotowa treść do wklejenia<br>nad Twoją firmową stopką.</p></div>
+        </aside>
+
+        <main class="main-content" id="main-content">
+          <section class="template-heading" aria-labelledby="template-title">
+            <p class="eyebrow"><span class="accent-line" aria-hidden="true"></span>TWÓJ MAIL DO KLIENTA</p>
+            <h1 id="template-title"></h1>
+            <p id="template-purpose" class="template-purpose"></p>
+            <div id="template-tags" class="template-tags"></div>
+          </section>
+
+          <section class="composer" aria-label="Edytor wiadomości">
+            <div class="subject-row">
+              <label for="subject-input">Temat</label>
+              <input id="subject-input" type="text" aria-label="Temat wiadomości" autocomplete="off">
+              <button id="copy-subject" type="button" class="button button-quiet button-small" title="Skopiuj temat wiadomości">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg>
+                <span>Kopiuj temat</span>
+              </button>
+            </div>
+
+            <div class="editor-toolbar">
+              <div class="format-switch" role="group" aria-label="Wariant wiadomości">
+                <button id="format-text" type="button" aria-pressed="true">
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 5h16M4 10h16M4 15h16M4 20h10"/></svg>
+                  Treść z linkami
+                </button>
+                <button id="format-visual" type="button" aria-pressed="false">
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m21 16-6-6L3 21"/></svg>
+                  Ze zdjęciami
+                </button>
+              </div>
+              <button id="reset-template" type="button" class="button button-quiet button-small">
+                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v6h6M3.8 10a8.5 8.5 0 1 1-.3 5"/></svg>
+                Przywróć wzór
+              </button>
+            </div>
+            <p class="edit-hint">Możesz poprawić temat i treść przed skopiowaniem. Wariant z linkami i wariant ze zdjęciami edytujesz osobno.</p>
+            <div class="email-paper">
+              <div id="email-editor" contenteditable="true" role="textbox" aria-label="Treść wiadomości" aria-multiline="true" spellcheck="true"></div>
+            </div>
+            <div class="composer-actions">
+              <div class="copy-actions">
+                <button id="copy-email" type="button" class="button button-primary">
+                  <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg>
+                  Kopiuj mail
+                </button>
+                <button id="copy-plain" type="button" class="button button-quiet">Kopiuj zwykły tekst</button>
+              </div>
+              <div class="download-actions">
+                <button id="download-html" type="button" class="button button-outline button-small">Pobierz HTML</button>
+                <button id="download-txt" type="button" class="button button-quiet button-small">Pobierz TXT</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="below-composer">
+            <p class="paste-hint">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+              Wklej nad swoją firmową stopką. Temat skopiuj osobno.
+            </p>
+            <p id="template-note" class="template-note" hidden></p>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="copy-fallback" class="copy-dialog" aria-labelledby="copy-fallback-title">
+      <h2 id="copy-fallback-title">Skopiuj treść ręcznie</h2>
+      <p>Przeglądarka nie udostępniła schowka. Zaznacz tekst poniżej i skopiuj go skrótem Ctrl+C lub ⌘C.</p>
+      <label for="copy-fallback-text" class="sr-only">Treść do skopiowania</label>
+      <textarea id="copy-fallback-text" rows="12" readonly></textarea>
+      <button id="close-copy-fallback" type="button" class="button button-primary">Gotowe</button>
+    </dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

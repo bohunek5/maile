@@ -1,0 +1,21 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { randomBytes, pbkdf2Sync, createCipheriv } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let password = '';
+for await (const chunk of process.stdin) password += chunk.toString();
+password = password.replace(/\r?\n$/, '');
+if (password.length < 10) throw new Error('Provide the password on stdin (at least 10 characters).');
+const data = JSON.parse(await readFile(path.join(root, 'private/library.json'), 'utf8'));
+if (data.schemaVersion !== 1 || data.templates.length !== 10) throw new Error('Expected 10 templates.');
+const salt = randomBytes(16), iv = randomBytes(12), iterations = 600000;
+const key = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+password = '';
+const cipher = createCipheriv('aes-256-gcm', key, iv);
+cipher.setAAD(Buffer.from('prescot-mail-library-v1'));
+const encrypted = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final(), cipher.getAuthTag()]);
+key.fill(0);
+await writeFile(path.join(root, 'library.enc.json'), JSON.stringify({version:1, algorithm:'AES-GCM', iterations, salt:salt.toString('base64'), iv:iv.toString('base64'), data:encrypted.toString('base64')}));
+console.log('Encrypted 10 templates. No password was written to disk.');

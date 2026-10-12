@@ -1,0 +1,67 @@
+import {chromium} from 'playwright';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+
+let password='';for await (const chunk of process.stdin) password+=chunk;password=password.replace(/\r?\n$/,'');
+if(!password)throw new Error('Provide the test password on stdin.');
+const base=process.env.MAILE_TEST_URL || 'http://127.0.0.1:4179/';
+await mkdir('test-results',{recursive:true});
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1000},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});
+const page=await context.newPage(), errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+if(base.includes('127.0.0.1'))await page.route('https://bohunek5.github.io/maile/assets/products/*',route=>route.fulfill({path:path.resolve('assets/products',route.request().url().split('/').pop()),contentType:'image/jpeg'}));
+await page.goto(base);
+assert(await page.locator('#workspace').isHidden());
+assert.equal(await page.locator('#email-editor').textContent(),'');
+await page.locator('#password').fill('wrong-password');await page.locator('#unlock-button').click();
+await page.getByText('Nieprawidłowe hasło. Spróbuj ponownie.').waitFor();
+assert(await page.locator('#workspace').isHidden());
+await page.screenshot({path:'test-results/login.png'});
+await page.locator('#password').fill(password);await page.locator('#unlock-button').click();
+await page.locator('#workspace').waitFor({state:'visible'});
+assert.equal(await page.locator('.template-item').count(),10);
+assert.equal(await page.locator('#password').inputValue(),'');
+await page.screenshot({path:'test-results/desktop.png',fullPage:true});
+await page.locator('#copy-email').click();
+await page.locator('#toast').filter({hasText:'Mail skopiowany.'}).waitFor();
+const clipboard=await page.evaluate(async()=>{const [entry]=await navigator.clipboard.read();return {types:entry.types,html:await (await entry.getType('text/html')).text(),plain:await (await entry.getType('text/plain')).text()};});
+assert(clipboard.types.includes('text/html'));assert(clipboard.html.includes('https://www.prescot.pl/'));assert(clipboard.plain.includes('Dzień dobry,'));assert(!clipboard.plain.includes('Hubert'));
+await page.locator('#copy-subject').click();await page.locator('#toast').filter({hasText:'Temat skopiowany.'}).waitFor();assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),await page.locator('#subject-input').inputValue());
+await page.locator('#email-editor').evaluate(el=>{el.insertAdjacentHTML('beforeend','<p>Dodatkowe ustalenia klienta.</p>');el.dispatchEvent(new Event('input',{bubbles:true}));});
+await page.locator('#format-visual').click();assert((await page.locator('#email-editor img').count())>0);
+await page.locator('#format-text').click();assert((await page.locator('#email-editor').textContent()).includes('Dodatkowe ustalenia klienta.'));
+await page.locator('#reset-template').click();assert(!(await page.locator('#email-editor').textContent()).includes('Dodatkowe ustalenia klienta.'));
+const ids=await page.locator('.template-item').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
+for(const id of ids){
+ await page.locator(`.template-item[data-id="${id}"]`).click();
+ await page.locator('#format-text').click();
+ const text=await page.locator('#email-editor').innerText();
+ assert(text.startsWith('Dzień dobry,'));assert(!/Hubert|Pozdrawiam|609 438|PRESCOT-10/.test(text));
+ const links=await page.locator('#email-editor a').evaluateAll(nodes=>nodes.map(a=>a.href));assert(links.length>=3);assert(links.every(u=>u.startsWith('https://www.prescot.pl/')));
+ await page.locator('#format-visual').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#email-editor img')].every(i=>i.complete&&i.naturalWidth>0));
+}
+await page.locator('.template-item[data-id="7-lat"]').click();
+await page.screenshot({path:'test-results/visual.png',fullPage:true});
+let downloadPromise=page.waitForEvent('download');await page.locator('#download-html').click();let download=await downloadPromise;await download.saveAs('test-results/download.html');
+const exported=await readFile('test-results/download.html','utf8');assert(exported.includes('<img'));assert(!exported.includes('Przed wyceną ustal'));assert(!exported.includes('contenteditable'));assert(!exported.includes('Hubert'));
+downloadPromise=page.waitForEvent('download');await page.locator('#download-all').click();download=await downloadPromise;await download.saveAs('test-results/PRESCOT-10-maili.zip');
+await page.locator('#group-filter').selectOption('warranty');assert.equal(await page.locator('.template-item').count(),3);
+await page.locator('#group-filter').selectOption('all');await page.locator('#search-input').fill('złaczki');assert.equal(await page.locator('.template-item').count(),1);
+await page.locator('#search-input').fill('zzzzunknown');assert(await page.locator('#empty-state').isVisible());await page.locator('#search-input').fill('');
+for(const width of [390,320]){
+ await page.setViewportSize({width,height:844});await page.locator('.template-item[data-id="ogolny"]').click();
+ await page.locator('#format-text').click();await page.screenshot({path:`test-results/mobile-${width}.png`,fullPage:true});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.locator('#format-visual').click();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+}
+await page.locator('#lock-button').click();assert(await page.locator('#workspace').isHidden());assert.equal(await page.locator('#email-editor').textContent(),'');
+assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+await page.reload();assert(await page.locator('#workspace').isHidden());
+const sanitizing=await page.evaluate(async()=>{const {cleanEmail}=await import('./email.js');return cleanEmail('<p onclick="evil()">Test<script>evil()</script><a href="javascript:evil()">Link</a><img src="x" onerror="evil()"></p>');});
+assert(!/javascript:|onclick|onerror|<script/.test(sanitizing));
+assert.deepEqual(errors,[]);
+await writeFile('test-results/result.json',JSON.stringify({passed:true,templates:10,variants:20,viewportWidths:[1440,390,320],copyHTML:true,copyText:true,downloads:true,lock:true},null,2));
+await browser.close();console.log('PASS: login, wrong password, 10 templates, 20 variants, clipboard, edit/reset, HTML/ZIP, filtering, mobile, lock, sanitization.');
